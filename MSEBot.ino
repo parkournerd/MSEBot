@@ -278,6 +278,8 @@ void loop()
       encoder_RightMotor.zero();
       encoder_GripMotor.zero();
       ui_Mode_Indicator_Index = 0;
+
+	  if ()
       break;
     } 
   
@@ -551,7 +553,7 @@ void readLineTrackers()
   ui_Left_Line_Tracker_Data = analogRead(ci_Left_Line_Tracker);
   ui_Middle_Line_Tracker_Data = analogRead(ci_Middle_Line_Tracker);
   ui_Right_Line_Tracker_Data = analogRead(ci_Right_Line_Tracker);
-  potAdjust = analogRead(A3);
+  potAdjust = 200;
 
   if(ui_Left_Line_Tracker_Data < (ui_Left_Line_Tracker_Dark - ui_Line_Tracker_Tolerance))
   {
