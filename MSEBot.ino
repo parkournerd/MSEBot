@@ -133,21 +133,15 @@ boolean middleDark;
 boolean rightDark;
 int potAdjust;
 
-// line-following mode variables
-byte dir; // 0 to left, 1 to middle, 2 to right
-boolean offTrack;
-boolean changedDirection;
-
 // debug and stop times in term of encoder
 byte serialBuffer;
 int debugValue = 100;
-int leftEncoderStopTime = 0;
-int rightEncoderStopTime = 0;
+long leftEncoderStopTime = 0;
+long rightEncoderStopTime = 0;
 
 // overall mode and operational variables
-boolean trackingLine = true;
-byte stage = 0; // 1 after is after first tape
-boolean directionOfTravel = 0; // 0 -> forwards, 1-> backwards
+byte stopNumber = 0;
+byte branchNumber = 0;
 
 unsigned int  ui_Robot_State_Index = 0;
 //0123456789ABCDEF
@@ -287,22 +281,22 @@ void loop()
 		// servo_ArmMotor.write(ci_Arm_Servo_Retracted);
 		// servo_GripMotor.writeMicroseconds(ci_Grip_Motor_Stop);
 
-		if (Serial.available())
+		/*if (Serial.available())
 		{
-			serialBuffer = Serial.read();
+		serialBuffer = Serial.read();
 
-			if (serialBuffer == '0')
-			{
-				debugValue = debugValue - 30;
-			}
-			else if (serialBuffer == '1')
-			{
-				debugValue = debugValue + 30;
-			}
-
-			Serial.println(debugValue);
-			servo_GripMotor.writeMicroseconds(debugValue);
+		if (serialBuffer == '0')
+		{
+		debugValue = debugValue - 30;
 		}
+		else if (serialBuffer == '1')
+		{
+		debugValue = debugValue + 30;
+		}
+
+		Serial.println(debugValue);
+		servo_GripMotor.writeMicroseconds(debugValue);
+		}*/
 
 		encoder_LeftMotor.zero();
 		encoder_RightMotor.zero();
@@ -318,7 +312,7 @@ void loop()
 		{
 			readLineTrackers();
 
-			
+
 #ifdef DEBUG_ENCODERS           
 			ul_Left_Motor_Position = encoder_LeftMotor.getPosition();
 			ul_Right_Motor_Position = encoder_RightMotor.getPosition();
@@ -337,57 +331,25 @@ void loop()
 			  possibly encoder counts.
 			  /*************************************************************************************/
 
-			// if you currently tracking the line
-			if (trackingLine == true)
+			if ((leftDark == 0) && (rightDark == 1))
 			{
-				if ((leftDark == 0) && (rightDark == 1))
-				{
-					changedDirection = false;
-					offTrack = false;
-					turnLeft();
-				}
-				else if ((leftDark == 1) && (rightDark == 0))
-				{
-					changedDirection = false;
-					offTrack = false;
-					turnRight();
-				}
-				else if ((leftDark == 1) && (middleDark == 0) && (rightDark == 1)) // on track
-				{
-					changedDirection = false;
-					offTrack = false;
-					goStraight();
-				}
-				else if ((leftDark == false) && (middleDark == false) && (rightDark == false)) // if at end
-				{
-					// stop
-					// ui_Robot_State_Index = 0;
-					ui_Left_Motor_Speed = ci_Left_Motor_Stop;
-					ui_Right_Motor_Speed = ci_Right_Motor_Stop;
-				}
-				else if ((leftDark == true) && (middleDark == true) && (rightDark == true) && (changedDirection == false)) // if off track
-				{
-					offTrack = true;
-					changedDirection = true;
-
-					if (dir == 0) // change direction
-						turnLeft;
-					else
-						turnRight();
-				}
+				turnLeft();
+			}
+			else if ((leftDark == 1) && (rightDark == 0))
+			{
+				turnRight();
+			}
+			else if ((leftDark == 1) && (middleDark == 0) && (rightDark == 1)) // on track
+			{
+				goStraight();
+			}
+			else if ((leftDark == 0) && (middleDark == 0) && (rightDark ==0)) // if at end
+			{
+				// stop
+				stop();
 			}
 
-			// changes motors after they are calculated
-			if (bt_Motors_Enabled)
-			{
-				servo_LeftMotor.writeMicroseconds(ui_Left_Motor_Speed);
-				servo_RightMotor.writeMicroseconds(ui_Right_Motor_Speed);
-			}
-			else
-			{
-				servo_LeftMotor.writeMicroseconds(ci_Left_Motor_Stop);
-				servo_RightMotor.writeMicroseconds(ci_Right_Motor_Stop);
-			}
+			writeMotors();
 
 #ifdef DEBUG_MOTORS  
 			Serial.print("Motors: Default: ");
@@ -398,9 +360,9 @@ void loop()
 			Serial.println(ui_Right_Motor_Speed);
 #endif    
 			ui_Mode_Indicator_Index = 1;
-			}
-		break;
 		}
+		break;
+	}
 
 	case 2:    //Calibrate line tracker light levels after 3 seconds
 	{
@@ -550,10 +512,10 @@ void loop()
 			Serial.println(encoder_RightMotor.getRawPosition());
 #endif        
 			ui_Mode_Indicator_Index = 4;
-				}
-		break;
-			}
 		}
+		break;
+	}
+	}
 
 	if ((millis() - ul_Display_Time) > ci_Display_Time)
 	{
@@ -568,7 +530,7 @@ void loop()
 		digitalWrite(13, bt_Heartbeat);
 		Indicator();
 	}
-	}
+}
 
 // set mode indicator LED state
 void Indicator()
@@ -586,7 +548,7 @@ void readLineTrackers()
 	ui_Left_Line_Tracker_Data = analogRead(ci_Left_Line_Tracker);
 	ui_Middle_Line_Tracker_Data = analogRead(ci_Middle_Line_Tracker);
 	ui_Right_Line_Tracker_Data = analogRead(ci_Right_Line_Tracker);
-	potAdjust = 200;
+	potAdjust = 160;
 
 	if (ui_Left_Line_Tracker_Data < (ui_Left_Line_Tracker_Dark - ui_Line_Tracker_Tolerance))
 	{
@@ -628,7 +590,7 @@ void readLineTrackers()
 	Serial.println(ui_Right_Line_Tracker_Data, DEC);
 #endif
 
-	}
+}
 
 // measure distance to target using ultrasonic sensor  
 void Ping()
@@ -655,23 +617,32 @@ void Ping()
 
 void turnLeft()
 {
-	ui_Right_Motor_Speed = 2100 - potAdjust / 2 + ui_Right_Motor_Offset;
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + potAdjust * 2 + ui_Right_Motor_Offset), 1600, 2100);
 	ui_Left_Motor_Speed = ci_Left_Motor_Stop + ui_Right_Motor_Offset;
-	dir = 0;
 }
 
 void turnRight()
 {
-	ui_Left_Motor_Speed = 2100 - potAdjust / 2 + ui_Left_Motor_Offset;
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + potAdjust * 2 + ui_Left_Motor_Offset), 1600, 2100);
 	ui_Right_Motor_Speed = ci_Right_Motor_Stop + ui_Right_Motor_Offset;
-	dir = 2;
 }
 
 void goStraight()
 {
-	ui_Left_Motor_Speed = 2100 - potAdjust / 2 + ui_Left_Motor_Offset;
-	ui_Right_Motor_Speed = 2100 - potAdjust / 2 + ui_Right_Motor_Offset;
-	dir = 1;
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + potAdjust * 2 + ui_Left_Motor_Offset), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + potAdjust * 2 + ui_Right_Motor_Offset), 1600, 2100);
+}
+
+void stop()
+{
+	servo_LeftMotor.writeMicroseconds(ci_Left_Motor_Stop);
+	servo_RightMotor.writeMicroseconds(ci_Right_Motor_Stop);
+}
+
+void writeMotors()
+{
+	servo_LeftMotor.writeMicroseconds(ui_Left_Motor_Speed);
+	servo_RightMotor.writeMicroseconds(ui_Right_Motor_Speed);
 }
 
 void extendArm()
@@ -694,12 +665,12 @@ void closeClaw()
 	servo_GripMotor.write(ci_Grip_Motor_Closed);
 }
 
-void leftNinety(boolean)
+void calcLeftNinety()
 {
-	rightEncoderStopTime = encoder_RightMotor.getPosition() + 34;
+	rightEncoderStopTime = encoder_RightMotor.getRawPosition() + 700;
 }
 
-void rightNinety(boolean)
+void calcRightNinety()
 {
-	leftEncoderStopTime = encoder_LeftMotor.getPosition() + 34;
+	leftEncoderStopTime = encoder_LeftMotor.getRawPosition() + 780;
 }
