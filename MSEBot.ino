@@ -280,22 +280,23 @@ void loop()
 		// servo_ArmMotor.write(ci_Arm_Servo_Retracted);
 		// servo_GripMotor.writeMicroseconds(ci_Grip_Motor_Stop);
 
-		/*if (Serial.available())
+		// code showing testing of claw opening
+		if (Serial.available())
 		{
-		serialBuffer = Serial.read();
+			serialBuffer = Serial.read();
 
 		if (serialBuffer == '0')
 		{
-		debugValue = debugValue - 30;
+			debugValue = debugValue - 30;
 		}
 		else if (serialBuffer == '1')
 		{
-		debugValue = debugValue + 30;
+			debugValue = debugValue + 30;
 		}
 
-		Serial.println(debugValue);
-		servo_GripMotor.writeMicroseconds(debugValue);
-		}*/
+			Serial.println(debugValue);
+			servo_GripMotor.writeMicroseconds(debugValue);
+		}
 
 		encoder_LeftMotor.zero();
 		encoder_RightMotor.zero();
@@ -329,24 +330,6 @@ void loop()
 			  Adjust motor speed according to information from line tracking sensors and
 			  possibly encoder counts.
 			  /*************************************************************************************/
-
-			if ((leftDark == 0) && (rightDark == 1))
-			{
-				turnLeft();
-			}
-			else if ((leftDark == 1) && (rightDark == 0))
-			{
-				turnRight();
-			}
-			else if ((leftDark == 1) && (middleDark == 0) && (rightDark == 1)) // on track
-			{
-				goForward();
-			}
-			else if ((leftDark == 0) && (middleDark == 0) && (rightDark ==0)) // if at end
-			{
-				// stop
-				halt();
-			}
 
 			switch (stage)
 			{
@@ -551,34 +534,6 @@ void loop()
 				Position: stop 1 
 				What Doing: stop, set mode = 0 for entire program
 				When to Increment Stage: 0
-				*/
-				break;
-			case 29:
-				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
-				*/
-				break;
-			case 30: 
-				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
-				*/
-				break;
-			case 31:
-				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
-				*/
-				break;
-			case 32:
-				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
 				*/
 				break;
 			default:
@@ -935,6 +890,27 @@ boolean doneRightTurn()
 		return false;
 }
 
+void followLine()
+{
+	if ((leftDark == 0) && (rightDark == 1))
+	{
+		turnLeft();
+	}
+	else if ((leftDark == 1) && (rightDark == 0))
+	{
+		turnRight();
+	}
+	else if ((leftDark == 1) && (middleDark == 0) && (rightDark == 1)) // on track
+	{
+		goForward();
+	}
+	else if ((leftDark == 0) && (middleDark == 0) && (rightDark == 0)) // if at end
+	{
+		// stop
+		halt();
+	}
+}
+
 // changes motors speeds based on left/right, ofset already
 void implementMotorSpeed()
 {
@@ -949,6 +925,7 @@ void implementMotorSpeed()
 		servo_RightMotor.writeMicroseconds(ci_Right_Motor_Stop);
 	}
 }
+
 
 // CLAW FUNCTIONS
 
