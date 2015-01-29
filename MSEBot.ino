@@ -127,15 +127,19 @@ unsigned int ui_Right_Line_Tracker_Dark;
 unsigned int ui_Right_Line_Tracker_Light;
 unsigned int ui_Line_Tracker_Tolerance;
 
-// calibrations
-boolean leftDark;
-boolean middleDark;
-boolean rightDark;
-int potAdjust;
+// boolean for quicker access of binary line tracker readings
+boolean leftOnLine;
+boolean middleOnLine;
+boolean rightOnLine;
 
-// debug and stop times in term of encoder
+// speed factor
+int speedFactor;
+
+// debugging variables
 byte serialBuffer;
 int debugValue = 100;
+
+// variables for open loop functions
 long leftEncoderStopTime = 0;
 long rightEncoderStopTime = 0;
 
@@ -738,37 +742,37 @@ void readLineTrackers()
 	ui_Left_Line_Tracker_Data = analogRead(ci_Left_Line_Tracker);
 	ui_Middle_Line_Tracker_Data = analogRead(ci_Middle_Line_Tracker);
 	ui_Right_Line_Tracker_Data = analogRead(ci_Right_Line_Tracker);
-	potAdjust = 160;
+	speedFactor = 160;
 
 	if (ui_Left_Line_Tracker_Data < (ui_Left_Line_Tracker_Dark - ui_Line_Tracker_Tolerance))
 	{
 		CharliePlexM::Write(ci_Left_Line_Tracker_LED, HIGH);
-		leftDark = false;
+		leftOnLine = true;
 	}
 	else
 	{
 		CharliePlexM::Write(ci_Left_Line_Tracker_LED, LOW);
-		leftDark = true;
+		leftOnLine = false;
 	}
 	if (ui_Middle_Line_Tracker_Data < (ui_Middle_Line_Tracker_Dark - ui_Line_Tracker_Tolerance))
 	{
 		CharliePlexM::Write(ci_Middle_Line_Tracker_LED, HIGH);
-		middleDark = false;
+		middleOnLine = true;
 	}
 	else
 	{
 		CharliePlexM::Write(ci_Middle_Line_Tracker_LED, LOW);
-		middleDark = true;
+		middleOnLine = false;
 	}
 	if (ui_Right_Line_Tracker_Data < (ui_Right_Line_Tracker_Dark - ui_Line_Tracker_Tolerance))
 	{
 		CharliePlexM::Write(ci_Right_Line_Tracker_LED, HIGH);
-		rightDark = false;
+		rightOnLine = true;
 	}
 	else
 	{
 		CharliePlexM::Write(ci_Right_Line_Tracker_LED, LOW);
-		rightDark = true;
+		rightOnLine = false;
 	}
 
 #ifdef DEBUG_LINE_TRACKERS
@@ -807,36 +811,32 @@ void Ping()
 
 // NAVIGATIONAL MOTOR FUNCTIONS
 
-// MOTIONS
+// Basic Motions
 
 void turnLeft()
 {
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + potAdjust * 2), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor * 2), 1600, 2100);
 	ui_Left_Motor_Speed = ci_Left_Motor_Stop;
 	implementMotorSpeed();
 }
-
 void turnRight()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + potAdjust * 2), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor * 2), 1600, 2100);
 	ui_Right_Motor_Speed = ci_Right_Motor_Stop;
 	implementMotorSpeed();
 }
-
 void goForward()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + potAdjust * 2), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + potAdjust * 2), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor * 2), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor * 2), 1600, 2100);
 	implementMotorSpeed();
 }
-
 void goBackward()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - potAdjust * 2), 900, 1400);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop - potAdjust * 2), 900, 1400);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - speedFactor * 2), 900, 1400);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop - speedFactor * 2), 900, 1400);
 	implementMotorSpeed();
 }
-
 void halt()
 {
 	servo_LeftMotor.writeMicroseconds(ci_Left_Motor_Stop);
@@ -844,30 +844,30 @@ void halt()
 	implementMotorSpeed();
 }
 
+// Veering Motions
+
 // goes mostly forward slowly, but slightly to the left
 void veerLeft(byte intensity)
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + potAdjust), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + potAdjust + intensity), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor + intensity), 1600, 2100);
 	implementMotorSpeed();
 }
-
 // goes mostly forward slowly, but slightly to the right
 void veerRight(byte intensity)
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + potAdjust + intensity), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + potAdjust), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor + intensity), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor), 1600, 2100);
 	implementMotorSpeed();
 }
 
-// Calculate pre-planned motions and see if they have been met
+// Open Loop Control Calulations and Status
 
 void calcLeftTurn(int fullCircle, int angle) // full circle should be around 2800
 {
 	rightEncoderStopTime = encoder_RightMotor.getRawPosition() + fullCircle * (angle / 360);
 	implementMotorSpeed();
 }
-
 void calcRightTurn(int fullCircle, int angle)
 {
 	leftEncoderStopTime = encoder_LeftMotor.getRawPosition() + fullCircle * (angle / 360);
@@ -881,7 +881,6 @@ boolean doneLeftTurn()
 	else
 		return false;
 }
-
 boolean doneRightTurn()
 {
 	if (encoder_LeftMotor.getRawPosition() > leftEncoderStopTime)
@@ -890,28 +889,29 @@ boolean doneRightTurn()
 		return false;
 }
 
+// Line Following
+
 void followLine()
 {
-	if ((leftDark == 0) && (rightDark == 1))
+	// if line on left, turn left
+	if ((leftOnLine) && (!rightOnLine))
 	{
 		turnLeft();
 	}
-	else if ((leftDark == 1) && (rightDark == 0))
+	// if line on right, turn right
+	else if ((!leftOnLine) && (rightOnLine))
 	{
 		turnRight();
 	}
-	else if ((leftDark == 1) && (middleDark == 0) && (rightDark == 1)) // on track
+	// if on track, go straight
+	else // on track (not enough information to do anything else)
 	{
 		goForward();
 	}
-	else if ((leftDark == 0) && (middleDark == 0) && (rightDark == 0)) // if at end
-	{
-		// stop
-		halt();
-	}
 }
 
-// changes motors speeds based on left/right, ofset already
+// Implements Motor Speed
+
 void implementMotorSpeed()
 {
 	if (bt_Motors_Enabled)
@@ -926,24 +926,20 @@ void implementMotorSpeed()
 	}
 }
 
-
 // CLAW FUNCTIONS
 
 void extendArm()
 {
 	servo_ArmMotor.write(ci_Arm_Servo_Extended);
 }
-
 void retractArm()
 {
 	servo_ArmMotor.write(ci_Arm_Servo_Retracted);
 }
-
 void openClaw()
 {
 	servo_GripMotor.write(ci_Grip_Motor_Open);
 }
-
 void closeClaw()
 {
 	servo_GripMotor.write(ci_Grip_Motor_Closed);
