@@ -340,12 +340,12 @@ void loop()
 			}
 			else if ((leftDark == 1) && (middleDark == 0) && (rightDark == 1)) // on track
 			{
-				goStraight();
+				goForward();
 			}
 			else if ((leftDark == 0) && (middleDark == 0) && (rightDark ==0)) // if at end
 			{
 				// stop
-				stop();
+				halt();
 			}
 
 			switch (stage)
@@ -438,119 +438,119 @@ void loop()
 				/*
 				Position: 20cm right from 4th stop (aligned, claw extended and opened)
 				What Doing: s
-				When to Increment Stage: until ultrasonic sensor reads
+				When to Increment Stage: until ultrasonic sensor reads 6cm
 				*/
 				break;
 			case 13:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: 6cm right from 4th stop (aligned, claw extended and opened) 
+				What Doing:close claw
+				When to Increment Stage: after 1s
 				*/
 				break;
 			case 14:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: 6cm right from 4th stop (got the shit)
+				What Doing: reverse
+				When to Increment Stage: sensor reads 25cm away
 				*/
 				break;
 			case 15:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: 25cm right from 4th stop (got the shit)
+				What Doing: calculate turn right 45 degrees
+				When to Increment Stage: done turning right 45 degrees
 				*/
 				break;
 			case 16:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position:  25cm right, 45 degrees from 4th stop (got the shit)
+				What Doing: straight slowly
+				When to Increment Stage: read middle high
 				*/
 				break;
 			case 17:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: after branch 3
+				What Doing: fl
+				When to Increment Stage: reads 111 or 101
 				*/
 				break;
 			case 18:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: branch 3
+				What Doing: straight, slightly right
+				When to Increment Stage: 1x0 or 0x1 or 0x0
 				*/
 				break;
 			case 19:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: before branch 3
+				What Doing: fl
+				When to Increment Stage: see 111
 				*/
 				break;
 			case 20:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: stop 3
+				What Doing: straight
+				When to Increment Stage: not 111
 				*/
 				break;
 			case 21:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: after branch 2
+				What Doing: fl
+				When to Increment Stage: reads 111 or 101
 				*/
 				break;
 			case 22:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: branch 2
+				What Doing: straight, slightly left
+				When to Increment Stage: 1x0 or 0x1 or 0x0
 				*/
 				break;
 			case 23:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: before branch 2
+				What Doing: fl
+				When to Increment Stage: see 111
 				*/
 				break;
 			case 24:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: stop 2
+				What Doing: staight
+				When to Increment Stage: not 111
 				*/
 				break;
 			case 25:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: after branch 1
+				What Doing: fl
+				When to Increment Stage: reads 111 or 101
 				*/
 				break;
 			case 26:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: branch 1
+				What Doing: straight, slightly left
+				When to Increment Stage: 1x0 or 0x1 or 0x0
 				*/
 				break;
 			case 27:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: before branch 1
+				What Doing: fl
+				When to Increment Stage: see 111
 				*/
 				break;
 			case 28:
 				/*
-				Position:
-				What Doing:
-				When to Increment Stage:
+				Position: stop 1 
+				What Doing: stop, set mode = 0 for entire program
+				When to Increment Stage: 0
 				*/
 				break;
 			case 29:
@@ -850,35 +850,107 @@ void Ping()
 #endif
 }
 
+// NAVIGATIONAL MOTOR FUNCTIONS
+
+// MOTIONS
+
 void turnLeft()
 {
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + potAdjust * 2 + ui_Right_Motor_Offset), 1600, 2100);
-	ui_Left_Motor_Speed = ci_Left_Motor_Stop + ui_Right_Motor_Offset;
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + potAdjust * 2), 1600, 2100);
+	ui_Left_Motor_Speed = ci_Left_Motor_Stop;
+	implementMotorSpeed();
 }
 
 void turnRight()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + potAdjust * 2 + ui_Left_Motor_Offset), 1600, 2100);
-	ui_Right_Motor_Speed = ci_Right_Motor_Stop + ui_Right_Motor_Offset;
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + potAdjust * 2), 1600, 2100);
+	ui_Right_Motor_Speed = ci_Right_Motor_Stop;
+	implementMotorSpeed();
 }
 
-void goStraight()
+void goForward()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + potAdjust * 2 + ui_Left_Motor_Offset), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + potAdjust * 2 + ui_Right_Motor_Offset), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + potAdjust * 2), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + potAdjust * 2), 1600, 2100);
+	implementMotorSpeed();
 }
 
-void stop()
+void goBackward()
+{
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - potAdjust * 2), 900, 1400);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop - potAdjust * 2), 900, 1400);
+	implementMotorSpeed();
+}
+
+void halt()
 {
 	servo_LeftMotor.writeMicroseconds(ci_Left_Motor_Stop);
 	servo_RightMotor.writeMicroseconds(ci_Right_Motor_Stop);
+	implementMotorSpeed();
 }
 
-void writeMotors()
+// goes mostly forward slowly, but slightly to the left
+void veerLeft(byte intensity)
 {
-	servo_LeftMotor.writeMicroseconds(ui_Left_Motor_Speed);
-	servo_RightMotor.writeMicroseconds(ui_Right_Motor_Speed);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + potAdjust), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + potAdjust + intensity), 1600, 2100);
+	implementMotorSpeed();
 }
+
+// goes mostly forward slowly, but slightly to the right
+void veerRight(byte intensity)
+{
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + potAdjust + intensity), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + potAdjust), 1600, 2100);
+	implementMotorSpeed();
+}
+
+// Calculate pre-planned motions and see if they have been met
+
+void calcLeftTurn(int fullCircle, int angle) // full circle should be around 2800
+{
+	rightEncoderStopTime = encoder_RightMotor.getRawPosition() + fullCircle * (angle / 360);
+	implementMotorSpeed();
+}
+
+void calcRightTurn(int fullCircle, int angle)
+{
+	leftEncoderStopTime = encoder_LeftMotor.getRawPosition() + fullCircle * (angle / 360);
+	implementMotorSpeed();
+}
+
+boolean doneLeftTurn()
+{
+	if (encoder_RightMotor.getRawPosition() > rightEncoderStopTime)
+		return true;
+	else
+		return false;
+}
+
+boolean doneRightTurn()
+{
+	if (encoder_LeftMotor.getRawPosition() > leftEncoderStopTime)
+		return true;
+	else
+		return false;
+}
+
+// changes motors speeds based on left/right, ofset already
+void implementMotorSpeed()
+{
+	if (bt_Motors_Enabled)
+	{
+		servo_LeftMotor.writeMicroseconds(constrain((ui_Left_Motor_Speed + ui_Left_Motor_Offset), 900, 2100));
+		servo_RightMotor.writeMicroseconds(constrain((ui_Right_Motor_Speed + ui_Right_Motor_Offset), 900, 2100));
+	}
+	else
+	{
+		servo_LeftMotor.writeMicroseconds(ci_Left_Motor_Stop);
+		servo_RightMotor.writeMicroseconds(ci_Right_Motor_Stop);
+	}
+}
+
+// CLAW FUNCTIONS
 
 void extendArm()
 {
@@ -900,12 +972,12 @@ void closeClaw()
 	servo_GripMotor.write(ci_Grip_Motor_Closed);
 }
 
-void calcLeftNinety()
-{
-	rightEncoderStopTime = encoder_RightMotor.getRawPosition() + 700;
-}
+// ULTRASONIC SENSOR FUNCTIONS
 
-void calcRightNinety()
+// returns ultrasonic reading in cm
+int sensorDistance()
 {
-	leftEncoderStopTime = encoder_LeftMotor.getRawPosition() + 780;
+	Ping();
+
+	return (ul_Echo_Time / 58);
 }
