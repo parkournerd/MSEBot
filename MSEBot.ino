@@ -139,9 +139,8 @@ int debugValue = 100;
 long leftEncoderStopTime = 0;
 long rightEncoderStopTime = 0;
 
-// overall mode and operational variables
-byte stopNumber = 0;
-byte branchNumber = 0;
+// stage variables
+byte stage = 0;
 
 unsigned int  ui_Robot_State_Index = 0;
 //0123456789ABCDEF
@@ -349,7 +348,243 @@ void loop()
 				stop();
 			}
 
-			writeMotors();
+			switch (stage)
+			{
+			case 0:
+				/*
+				Position: before 1st stop
+				What Doing: following line
+				When to Increment Stage: see 111
+				*/
+				break;
+			case 1:
+				/*
+				Position: 1st stop
+				What Doing: go straight
+				When to Increment Stage: not 111
+				*/
+				break;
+			case 2:
+				/*
+				Position: before 2nd stop
+				What Doing: fl
+				When to Increment Stage: see 111
+				*/
+				break;
+			case 3:
+				/*
+				Position: 2nd stop
+				What Doing: go straight
+				When to Increment Stage: not 111
+				*/
+				break;
+			case 4:
+				/*
+				Position: before 3rd stop
+				What Doing: fl
+				When to Increment Stage: see 111
+				*/
+				break;
+			case 5:
+				/*
+				Position:3rd stop
+				What Doing: s
+				When to Increment Stage: not 111
+				*/
+				break;
+			case 6:
+				/*
+				Position: before 4th stop
+				What Doing: fl
+				When to Increment Stage: see 111
+				*/
+				break;
+			case 7:
+				/*
+				Position: 4th stop
+				What Doing: stop, then calculates how to turn 90 degrees once
+				When to Increment Stage: done turning right
+				*/
+				break;
+			case 8:
+				/*
+				Position: 4th stop, turned right
+				What Doing: stops, then calculates how to move 20cm forward once
+				When to Increment Stage: done going forwards
+				*/
+				break;
+			case 9:
+				/*
+				Position:  20cm right from 4th stop
+				What Doing: turns left, recording light values
+				When to Increment Stage: when values are increasing right away, increment +2 ( to 11) if starts increasing after decreasing
+				*/
+				break;
+			case 10:
+				/*
+				Position: 20cm right from 4th stop
+				What Doing: turns right, recording light values
+				When to Increment Stage: when values are increasing
+				*/
+				break;
+			case 11:
+				/*
+				Position: 20cm right from 4th stop (aligned)
+				What Doing: extend and open claw
+				When to Increment Stage: when done extending and opening claw
+				*/
+				break;
+			case 12:
+				/*
+				Position: 20cm right from 4th stop (aligned, claw extended and opened)
+				What Doing: s
+				When to Increment Stage: until ultrasonic sensor reads
+				*/
+				break;
+			case 13:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 14:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 15:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 16:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 17:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 18:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 19:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 20:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 21:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 22:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 23:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 24:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 25:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 26:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 27:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 28:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 29:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 30: 
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 31:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			case 32:
+				/*
+				Position:
+				What Doing:
+				When to Increment Stage:
+				*/
+				break;
+			default:
+				// dance
+				break;
+			}
 
 #ifdef DEBUG_MOTORS  
 			Serial.print("Motors: Default: ");
