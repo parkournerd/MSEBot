@@ -89,8 +89,8 @@ const int ci_Right_Motor_Stop = 1500;
 const int ci_Grip_Motor_Open = 1750;
 const int ci_Grip_Motor_Closed = 700;
 const int ci_Grip_Motor_Neutral = 1500;
-const int ci_Arm_Servo_Retracted = 55;      //  "
-const int ci_Arm_Servo_Extended = 120;      //  "
+const int ci_Arm_Servo_Retracted = 70;      //  "
+const int ci_Arm_Servo_Extended = 110;      //  "
 const int ci_Display_Time = 500;
 const int ci_Line_Tracker_Calibration_Interval = 100;
 const int ci_Line_Tracker_Cal_Measures = 20;
@@ -132,7 +132,7 @@ boolean middleOnLine;
 boolean rightOnLine;
 
 // speed factor
-int speedFactor;
+int speedFactor = 100;
 
 // debugging variables
 byte serialBuffer;
@@ -143,7 +143,7 @@ long leftEncoderStopTime = 0;
 long rightEncoderStopTime = 0;
 
 // stage variables
-byte stage = 0;
+byte stage = 9;
 
 // variable for open loop functions
 boolean loopStarted = false;
@@ -151,6 +151,7 @@ boolean loopStarted = false;
 // light sensor variable for previous
 int reading = 0;
 int previousReading = 0;
+boolean startedDecreasing;
 
 unsigned int  ui_Robot_State_Index = 0;
 //0123456789ABCDEF
@@ -287,8 +288,8 @@ void loop()
 		Ping();
 		servo_LeftMotor.writeMicroseconds(ci_Left_Motor_Stop);
 		servo_RightMotor.writeMicroseconds(ci_Right_Motor_Stop);
-		// servo_ArmMotor.write(ci_Arm_Servo_Retracted);
-		// servo_GripMotor.writeMicroseconds(ci_Grip_Motor_Stop);
+		servo_ArmMotor.write(ci_Arm_Servo_Retracted);
+		// servo_GripMotor.writeMicroseconds(ci_Grip_Motor_Closed);
 
 		// code showing testing of claw opening
 		if (Serial.available())
@@ -311,6 +312,7 @@ void loop()
 		encoder_LeftMotor.zero();
 		encoder_RightMotor.zero();
 		encoder_GripMotor.zero();
+
 		ui_Mode_Indicator_Index = 0;
 
 		break;
@@ -340,6 +342,8 @@ void loop()
 			Adjust motor speed according to information from line tracking sensors and
 			possibly encoder counts.
 			/*************************************************************************************/
+
+			Serial.println(stage);
 
 			switch (stage)
 			{
@@ -428,16 +432,17 @@ void loop()
 			case 7:
 				/*
 				Position: 4th stop
-				What Doing: fl
+				What Doing: stop go forward
 				When to Increment Stage: until for 6cm
 				*/
 				if (!loopStarted)
 				{
+					loopStarted = true;
 					halt();
-					calcRightTurn(2800, 18);
+					calcRightTurn(2800,10);
 					goForward();
 				}
-				else if (doneRightTurn)
+				else if (doneRightTurn())
 				{
 					halt();
 					loopStarted = false;
@@ -453,11 +458,12 @@ void loop()
 				// code runs once to calculate
 				if (!loopStarted)
 				{
+					loopStarted = true;
 					halt();
 					calcRightTurn(2800, 90);
 					turnRight();
 				}
-				else if (doneRightTurn)
+				else if (doneRightTurn())
 				{
 					halt();
 					loopStarted = false;
@@ -470,27 +476,31 @@ void loop()
 				What Doing: straight
 				When to Increment Stage: 20cm from the box
 				*/
-				if (sensorDistance() < 6)
+				extendArm();
+				delay(1000);
+				openClaw();
+				delay(1000);
+				stage++;
+				/*if (sensorDistance() < 6)
 				{
 					halt();
 					stage++;
 				}
 				else
 					goForward();
-				break;
+				break;*/
 			case 10:
 				/*
 				Position:  20cm right from 4th stop
 				What Doing: turns left, recording light values
 				When to Increment Stage: when values are increasing right away, increment +2 ( to 11) if starts increasing after decreasing
 				*/
-				boolean startedDecreasing;
-
 				if (!loopStarted) // do once
 				{
+					loopStarted = true;
 					previousReading = analogRead(ci_Light_Sensor);
 					turnLeft();
-					loopStarted = true;
+					delay(100);
 					if (analogRead(ci_Light_Sensor) < previousReading)
 						startedDecreasing = true;
 				}
@@ -525,6 +535,7 @@ void loop()
 				*/
 				if (!loopStarted) // do once
 				{
+					loopStarted = true;
 					turnRight();
 					loopStarted = true;
 				}
@@ -548,8 +559,6 @@ void loop()
 				What Doing: extend and open claw
 				When to Increment Stage: when done extending and opening claw
 				*/
-				extendArm();
-				openClaw();
 				stage++;
 				break;
 			case 13:
@@ -575,6 +584,9 @@ void loop()
 				When to Increment Stage: after 1s
 				*/
 				closeClaw();
+				delay(1000);
+				retractArm();
+				delay(1000);
 				stage++;
 				break;
 			case 15:
@@ -602,11 +614,12 @@ void loop()
 				// code runs once to calculate
 				if (!loopStarted)
 				{
+					loopStarted = true;
 					halt();
 					calcRightTurn(2800, 45);
 					turnRight();
 				}
-				else if (doneRightTurn)
+				else if (doneRightTurn())
 				{
 					halt();
 					loopStarted = false;
@@ -977,7 +990,6 @@ void readLineTrackers()
 	ui_Left_Line_Tracker_Data = analogRead(ci_Left_Line_Tracker);
 	ui_Middle_Line_Tracker_Data = analogRead(ci_Middle_Line_Tracker);
 	ui_Right_Line_Tracker_Data = analogRead(ci_Right_Line_Tracker);
-	speedFactor = 160;
 
 	if (ui_Left_Line_Tracker_Data < (ui_Left_Line_Tracker_Dark - ui_Line_Tracker_Tolerance))
 	{
@@ -1104,15 +1116,15 @@ void veerRight(byte intensity)
 
 // Open Loop Control Calulations and Status
 
-void calcLeftTurn(int fullCircle, int angle) // full circle should be around 2800
+void calcLeftTurn(long fullCircle, int angle) // full circle should be around 2800
 {
-	rightEncoderStopTime = encoder_RightMotor.getRawPosition() + fullCircle * (angle / 360);
-	implementMotorSpeed();
+	rightEncoderStopTime = encoder_RightMotor.getRawPosition();
+	rightEncoderStopTime += (fullCircle * angle) / 360;
 }
-void calcRightTurn(int fullCircle, int angle)
+void calcRightTurn(long fullCircle, int angle)
 {
-	leftEncoderStopTime = encoder_LeftMotor.getRawPosition() + fullCircle * (angle / 360);
-	implementMotorSpeed();
+	leftEncoderStopTime = encoder_LeftMotor.getRawPosition();
+	leftEncoderStopTime += (fullCircle * angle) / 360;
 }
 
 boolean doneLeftTurn()
@@ -1168,10 +1180,6 @@ void implementMotorSpeed()
 }
 
 // CLAW FUNCTIONS
-void apatheticArm()
-{
-	servo_ArmMotor.write(ci_Arm_Servo_Retracted);
-}
 void extendArm()
 {
 	servo_ArmMotor.write(ci_Arm_Servo_Extended);
@@ -1180,13 +1188,18 @@ void retractArm()
 {
 	servo_ArmMotor.write(ci_Arm_Servo_Retracted);
 }
+
+void apatheticClaw()
+{
+	servo_GripMotor.writeMicroseconds(ci_Grip_Motor_Neutral);
+}
 void openClaw()
 {
-	servo_GripMotor.write(ci_Grip_Motor_Open);
+	servo_GripMotor.writeMicroseconds(ci_Grip_Motor_Open);
 }
 void closeClaw()
 {
-	servo_GripMotor.write(ci_Grip_Motor_Closed);
+	servo_GripMotor.writeMicroseconds(ci_Grip_Motor_Closed);
 }
 
 // ULTRASONIC SENSOR FUNCTIONS
