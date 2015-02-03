@@ -1,13 +1,13 @@
 /*
 
- MSE 2202 MSEBot base code for Labs 3 and 4
- Language: Arduino
- Authors: Michael Naish and Eugen Porter
- Date: 15/01/18
+MSE 2202 MSEBot base code for Labs 3 and 4
+Language: Arduino
+Authors: Michael Naish and Eugen Porter
+Date: 15/01/18
 
- Rev 1 - Initial version
+Rev 1 - Initial version
 
- */
+*/
 
 #include <Servo.h>
 #include <EEPROM.h>
@@ -86,10 +86,9 @@ const int ci_Right_Motor_Offset_Address_H = 15;
 
 const int ci_Left_Motor_Stop = 1500;        // 200 for brake mode; 1500 for stop
 const int ci_Right_Motor_Stop = 1500;
-const int ci_Grip_Motor_Stop = 1500;
-const int ci_Grip_Motor_Open = 176;         // Experiment to determine appropriate value
-const int ci_Grip_Motor_Zero = 90;          //  "
-const int ci_Grip_Motor_Closed = 140;       //  "
+const int ci_Grip_Motor_Open = 1750;
+const int ci_Grip_Motor_Closed = 700;
+const int ci_Grip_Motor_Neutral = 1500;
 const int ci_Arm_Servo_Retracted = 55;      //  "
 const int ci_Arm_Servo_Extended = 120;      //  "
 const int ci_Display_Time = 500;
@@ -146,6 +145,13 @@ long rightEncoderStopTime = 0;
 // stage variables
 byte stage = 0;
 
+// variable for open loop functions
+boolean loopStarted = false;
+
+// light sensor variable for previous
+int reading = 0;
+int previousReading = 0;
+
 unsigned int  ui_Robot_State_Index = 0;
 //0123456789ABCDEF
 unsigned int  ui_Mode_Indicator[6] = {
@@ -191,7 +197,7 @@ void setup() {
 	servo_ArmMotor.attach(ci_Arm_Motor);
 	pinMode(ci_Grip_Motor, OUTPUT);
 	servo_GripMotor.attach(ci_Grip_Motor);
-	servo_GripMotor.write(ci_Grip_Motor_Zero);
+	servo_GripMotor.write(ci_Grip_Motor_Neutral);
 
 	// set up motor enable switch
 	pinMode(ci_Motor_Enable_Switch, INPUT);
@@ -289,14 +295,14 @@ void loop()
 		{
 			serialBuffer = Serial.read();
 
-		if (serialBuffer == '0')
-		{
-			debugValue = debugValue - 30;
-		}
-		else if (serialBuffer == '1')
-		{
-			debugValue = debugValue + 30;
-		}
+			if (serialBuffer == '0')
+			{
+				debugValue = debugValue - 30;
+			}
+			else if (serialBuffer == '1')
+			{
+				debugValue = debugValue + 30;
+			}
 
 			Serial.println(debugValue);
 			servo_GripMotor.writeMicroseconds(debugValue);
@@ -330,10 +336,10 @@ void loop()
 			Serial.println(ul_Grip_Motor_Position, DEC);
 #endif
 			/***************************************************************************************
-			  Add line tracking code here.
-			  Adjust motor speed according to information from line tracking sensors and
-			  possibly encoder counts.
-			  /*************************************************************************************/
+			Add line tracking code here.
+			Adjust motor speed according to information from line tracking sensors and
+			possibly encoder counts.
+			/*************************************************************************************/
 
 			switch (stage)
 			{
@@ -343,6 +349,12 @@ void loop()
 				What Doing: following line
 				When to Increment Stage: see 111
 				*/
+				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+				{
+					stage++;
+				}
+				else
+					followLine();
 				break;
 			case 1:
 				/*
@@ -350,6 +362,10 @@ void loop()
 				What Doing: go straight
 				When to Increment Stage: not 111
 				*/
+				if (!(leftOnLine&&middleOnLine&&rightOnLine))
+					stage++;
+				else
+					goForward();
 				break;
 			case 2:
 				/*
@@ -357,6 +373,10 @@ void loop()
 				What Doing: fl
 				When to Increment Stage: see 111
 				*/
+				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+					stage++;
+				else
+					followLine();
 				break;
 			case 3:
 				/*
@@ -364,6 +384,10 @@ void loop()
 				What Doing: go straight
 				When to Increment Stage: not 111
 				*/
+				if (!(leftOnLine&&middleOnLine&&rightOnLine))
+					stage++;
+				else
+					goForward();
 				break;
 			case 4:
 				/*
@@ -371,6 +395,10 @@ void loop()
 				What Doing: fl
 				When to Increment Stage: see 111
 				*/
+				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+					stage++;
+				else
+					followLine();
 				break;
 			case 5:
 				/*
@@ -378,6 +406,10 @@ void loop()
 				What Doing: s
 				When to Increment Stage: not 111
 				*/
+				if (!(leftOnLine&&middleOnLine&&rightOnLine))
+					stage++;
+				else
+					goForward();
 				break;
 			case 6:
 				/*
@@ -385,160 +417,363 @@ void loop()
 				What Doing: fl
 				When to Increment Stage: see 111
 				*/
+				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+				{
+					halt();
+					stage++;
+				}
+				else
+					followLine();
 				break;
 			case 7:
 				/*
 				Position: 4th stop
-				What Doing: stop, then calculates how to turn 90 degrees once
-				When to Increment Stage: done turning right
+				What Doing: fl
+				When to Increment Stage: until for 6cm
 				*/
+				if (!loopStarted)
+				{
+					halt();
+					calcRightTurn(2800, 18);
+					goForward();
+				}
+				else if (doneRightTurn)
+				{
+					halt();
+					loopStarted = false;
+					stage++;
+				}
 				break;
 			case 8:
 				/*
-				Position: 4th stop, turned right
-				What Doing: stops, then calculates how to move 20cm forward once
-				When to Increment Stage: done going forwards
+				Position: 4th stop + 6cm
+				What Doing: stop, then calculates how to turn 90 degrees once
+				When to Increment Stage: done turning right
 				*/
+				// code runs once to calculate
+				if (!loopStarted)
+				{
+					halt();
+					calcRightTurn(2800, 90);
+					turnRight();
+				}
+				else if (doneRightTurn)
+				{
+					halt();
+					loopStarted = false;
+					stage++;
+				}
 				break;
 			case 9:
+				/*
+				Position: 4th stop + 6cm + turned right
+				What Doing: straight
+				When to Increment Stage: 20cm from the box
+				*/
+				if (sensorDistance() < 6)
+				{
+					halt();
+					stage++;
+				}
+				else
+					goForward();
+				break;
+			case 10:
 				/*
 				Position:  20cm right from 4th stop
 				What Doing: turns left, recording light values
 				When to Increment Stage: when values are increasing right away, increment +2 ( to 11) if starts increasing after decreasing
 				*/
+				boolean startedDecreasing;
+
+				if (!loopStarted) // do once
+				{
+					previousReading = analogRead(ci_Light_Sensor);
+					turnLeft();
+					loopStarted = true;
+					if (analogRead(ci_Light_Sensor) < previousReading)
+						startedDecreasing = true;
+				}
+				else
+				{
+					reading = analogRead(ci_Light_Sensor);
+
+					if (reading > previousReading) // if time to turn or done finding source
+					{
+						if (startedDecreasing)
+						{
+							halt();
+							loopStarted = false;
+							stage = stage + 2;
+						}
+						else
+						{
+							halt();
+							loopStarted = false;
+							stage++;
+						}
+					}
+
+					previousReading = reading;
+				}
 				break;
-			case 10:
+			case 11:
 				/*
 				Position: 20cm right from 4th stop
 				What Doing: turns right, recording light values
 				When to Increment Stage: when values are increasing
 				*/
+				if (!loopStarted) // do once
+				{
+					turnRight();
+					loopStarted = true;
+				}
+				else
+				{
+					reading = analogRead(ci_Light_Sensor);
+
+					if (reading > previousReading) // if time to turn or done finding source
+					{
+						halt();
+						loopStarted = false;
+						stage++;
+					}
+
+					previousReading = reading;
+				}
 				break;
-			case 11:
+			case 12:
 				/*
 				Position: 20cm right from 4th stop (aligned)
 				What Doing: extend and open claw
 				When to Increment Stage: when done extending and opening claw
 				*/
+				extendArm();
+				openClaw();
+				stage++;
 				break;
-			case 12:
+			case 13:
 				/*
 				Position: 20cm right from 4th stop (aligned, claw extended and opened)
 				What Doing: s
 				When to Increment Stage: until ultrasonic sensor reads 6cm
 				*/
+				if (sensorDistance() <= 6)
+				{
+					halt();
+					stage++;
+				}
+				else
+				{
+					goForward();
+				}
 				break;
-			case 13:
+			case 14:
 				/*
-				Position: 6cm right from 4th stop (aligned, claw extended and opened) 
+				Position: 6cm right from 4th stop (aligned, claw extended and opened)
 				What Doing:close claw
 				When to Increment Stage: after 1s
 				*/
+				closeClaw();
+				stage++;
 				break;
-			case 14:
+			case 15:
 				/*
 				Position: 6cm right from 4th stop (got the shit)
 				What Doing: reverse
 				When to Increment Stage: sensor reads 25cm away
 				*/
+				if (sensorDistance() >= 25)
+				{
+					halt();
+					stage++;
+				}
+				else
+				{
+					goBackward();
+				}
 				break;
-			case 15:
+			case 16:
 				/*
 				Position: 25cm right from 4th stop (got the shit)
 				What Doing: calculate turn right 45 degrees
 				When to Increment Stage: done turning right 45 degrees
 				*/
+				// code runs once to calculate
+				if (!loopStarted)
+				{
+					halt();
+					calcRightTurn(2800, 45);
+					turnRight();
+				}
+				else if (doneRightTurn)
+				{
+					halt();
+					loopStarted = false;
+					stage++;
+				}
 				break;
-			case 16:
+			case 17:
 				/*
 				Position:  25cm right, 45 degrees from 4th stop (got the shit)
 				What Doing: straight slowly
 				When to Increment Stage: read middle high
 				*/
+				if (middleOnLine)
+				{
+					stage++;
+				}
+				else
+				{
+					goForwardSlowly();
+				}
 				break;
-			case 17:
+			case 18:
 				/*
 				Position: after branch 3
 				What Doing: fl
 				When to Increment Stage: reads 111 or 101
 				*/
+				if ((leftOnLine) && (rightOnLine))
+					stage++;
+				else
+					followLine();
 				break;
-			case 18:
+			case 19:
 				/*
 				Position: branch 3
 				What Doing: straight, slightly right
 				When to Increment Stage: 1x0 or 0x1 or 0x0
 				*/
+				if (((leftOnLine) && (!rightOnLine)) || ((!leftOnLine) && (rightOnLine)) || ((!leftOnLine) && (!rightOnLine)))
+				{
+					stage++;
+				}
+				else
+				{
+					veerRight(30);
+				}
 				break;
-			case 19:
+			case 20:
 				/*
 				Position: before branch 3
 				What Doing: fl
 				When to Increment Stage: see 111
 				*/
+				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+					stage++;
+				else
+					followLine();
 				break;
-			case 20:
+			case 21:
 				/*
 				Position: stop 3
 				What Doing: straight
 				When to Increment Stage: not 111
 				*/
+				if (!(leftOnLine&&middleOnLine&&rightOnLine))
+				{
+					stage++;
+				}
+				else
+					goForward();
 				break;
-			case 21:
+			case 22:
 				/*
 				Position: after branch 2
 				What Doing: fl
 				When to Increment Stage: reads 111 or 101
 				*/
+				if ((leftOnLine) && (rightOnLine))
+					stage++;
+				else
+					followLine();
 				break;
-			case 22:
+			case 23:
 				/*
 				Position: branch 2
 				What Doing: straight, slightly left
 				When to Increment Stage: 1x0 or 0x1 or 0x0
 				*/
+				if (((leftOnLine) && (!rightOnLine)) || ((!leftOnLine) && (rightOnLine)) || ((!leftOnLine) && (!rightOnLine)))
+				{
+					stage++;
+				}
+				else
+				{
+					veerLeft(30);
+				}
 				break;
-			case 23:
+			case 24:
 				/*
 				Position: before branch 2
 				What Doing: fl
 				When to Increment Stage: see 111
 				*/
+				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+					stage++;
+				else
+					followLine();
 				break;
-			case 24:
+			case 25:
 				/*
 				Position: stop 2
 				What Doing: staight
 				When to Increment Stage: not 111
 				*/
+				if (!(leftOnLine&&middleOnLine&&rightOnLine))
+				{
+					stage++;
+				}
+				else
+					goForward();
 				break;
-			case 25:
+			case 26:
 				/*
 				Position: after branch 1
 				What Doing: fl
 				When to Increment Stage: reads 111 or 101
 				*/
+				if ((leftOnLine) && (rightOnLine))
+					stage++;
+				else
+					followLine();
 				break;
-			case 26:
+			case 27:
 				/*
 				Position: branch 1
 				What Doing: straight, slightly left
 				When to Increment Stage: 1x0 or 0x1 or 0x0
 				*/
+				if (((leftOnLine) && (!rightOnLine)) || ((!leftOnLine) && (rightOnLine)) || ((!leftOnLine) && (!rightOnLine)))
+				{
+					stage++;
+				}
+				else
+				{
+					veerLeft(30);
+				}
 				break;
-			case 27:
+			case 28:
 				/*
 				Position: before branch 1
 				What Doing: fl
 				When to Increment Stage: see 111
 				*/
+				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+					stage++;
+				else
+					followLine();
 				break;
-			case 28:
+			case 29:
 				/*
-				Position: stop 1 
+				Position: stop 1
 				What Doing: stop, set mode = 0 for entire program
 				When to Increment Stage: 0
 				*/
+				halt();
+				stage = 0;
+				ui_Robot_State_Index = 0;
 				break;
 			default:
 				// dance
@@ -587,9 +822,9 @@ void loop()
 				ui_Right_Line_Tracker_Light /= ci_Line_Tracker_Cal_Measures;
 #ifdef DEBUG_LINE_TRACKER_CALIBRATION
 				Serial.print("Light Levels: Left = ");
-				Serial.print(ui_Left_Line_Tracker_Light,DEC);
+				Serial.print(ui_Left_Line_Tracker_Light, DEC);
 				Serial.print(", Middle = ");
-				Serial.print(ui_Middle_Line_Tracker_Light,DEC);
+				Serial.print(ui_Middle_Line_Tracker_Light, DEC);
 				Serial.print(", Right = ");
 				Serial.println(ui_Right_Line_Tracker_Light, DEC);
 #endif           
@@ -635,9 +870,9 @@ void loop()
 				ui_Right_Line_Tracker_Dark /= ci_Line_Tracker_Cal_Measures;
 #ifdef DEBUG_LINE_TRACKER_CALIBRATION
 				Serial.print("Dark Levels: Left = ");
-				Serial.print(ui_Left_Line_Tracker_Dark,DEC);
+				Serial.print(ui_Left_Line_Tracker_Dark, DEC);
 				Serial.print(", Middle = ");
-				Serial.print(ui_Middle_Line_Tracker_Dark,DEC);
+				Serial.print(ui_Middle_Line_Tracker_Dark, DEC);
 				Serial.print(", Right = ");
 				Serial.println(ui_Right_Line_Tracker_Dark, DEC);
 #endif           
@@ -777,9 +1012,9 @@ void readLineTrackers()
 
 #ifdef DEBUG_LINE_TRACKERS
 	Serial.print("Trackers: Left = ");
-	Serial.print(ui_Left_Line_Tracker_Data,DEC);
+	Serial.print(ui_Left_Line_Tracker_Data, DEC);
 	Serial.print(", Middle = ");
-	Serial.print(ui_Middle_Line_Tracker_Data,DEC);
+	Serial.print(ui_Middle_Line_Tracker_Data, DEC);
 	Serial.print(", Right = ");
 	Serial.println(ui_Right_Line_Tracker_Data, DEC);
 #endif
@@ -803,7 +1038,7 @@ void Ping()
 	Serial.print("Time (microseconds): ");
 	Serial.print(ul_Echo_Time, DEC);
 	Serial.print(", Inches: ");
-	Serial.print(ul_Echo_Time/148); //divide time by 148 to get distance in inches
+	Serial.print(ul_Echo_Time / 148); //divide time by 148 to get distance in inches
 	Serial.print(", cm: ");
 	Serial.println(ul_Echo_Time / 58); //divide time by 58 to get distance in cm 
 #endif
@@ -831,6 +1066,12 @@ void goForward()
 	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor * 2), 1600, 2100);
 	implementMotorSpeed();
 }
+void goForwardSlowly()
+{
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor), 1600, 2100);
+	implementMotorSpeed();
+}
 void goBackward()
 {
 	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - speedFactor * 2), 900, 1400);
@@ -839,8 +1080,8 @@ void goBackward()
 }
 void halt()
 {
-	servo_LeftMotor.writeMicroseconds(ci_Left_Motor_Stop);
-	servo_RightMotor.writeMicroseconds(ci_Right_Motor_Stop);
+	ui_Left_Motor_Speed = ci_Left_Motor_Stop;
+	ui_Right_Motor_Speed = ci_Right_Motor_Stop;
 	implementMotorSpeed();
 }
 
@@ -927,7 +1168,10 @@ void implementMotorSpeed()
 }
 
 // CLAW FUNCTIONS
-
+void apatheticArm()
+{
+	servo_ArmMotor.write(ci_Arm_Servo_Retracted);
+}
 void extendArm()
 {
 	servo_ArmMotor.write(ci_Arm_Servo_Extended);
