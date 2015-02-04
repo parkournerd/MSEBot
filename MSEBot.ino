@@ -143,7 +143,7 @@ long leftEncoderStopTime = 0;
 long rightEncoderStopTime = 0;
 
 // stage variables
-byte stage = 9;
+byte stage = 0;
 
 // variable for open loop functions
 boolean loopStarted = false;
@@ -342,7 +342,6 @@ void loop()
 			Adjust motor speed according to information from line tracking sensors and
 			possibly encoder counts.
 			/*************************************************************************************/
-
 			Serial.println(stage);
 
 			switch (stage)
@@ -473,8 +472,8 @@ void loop()
 			case 9:
 				/*
 				Position: 4th stop + 6cm + turned right
-				What Doing: straight
-				When to Increment Stage: 20cm from the box
+				What Doing: opens shit
+				When to Increment Stage: auto
 				*/
 				extendArm();
 				delay(1000);
@@ -492,92 +491,51 @@ void loop()
 			case 10:
 				/*
 				Position:  20cm right from 4th stop
-				What Doing: turns left, recording light values
-				When to Increment Stage: when values are increasing right away, increment +2 ( to 11) if starts increasing after decreasing
+				What Doing: turns left, until threshold light value
+				When to Increment Stage: until threshold light value
 				*/
-				if (!loopStarted) // do once
-				{
-					loopStarted = true;
-					previousReading = analogRead(ci_Light_Sensor);
-					turnLeft();
-					delay(100);
-					if (analogRead(ci_Light_Sensor) < previousReading)
-						startedDecreasing = true;
-				}
-				else
-				{
-					reading = analogRead(ci_Light_Sensor);
+					turnRight();
 
-					if (reading > previousReading) // if time to turn or done finding source
-					{
-						if (startedDecreasing)
-						{
-							halt();
-							loopStarted = false;
-							stage = stage + 2;
-						}
-						else
-						{
-							halt();
-							loopStarted = false;
-							stage++;
-						}
-					}
-
-					previousReading = reading;
-				}
+					if (analogRead(ci_Light_Sensor) < 110)
+						stage++;
 				break;
 			case 11:
-				/*
-				Position: 20cm right from 4th stop
-				What Doing: turns right, recording light values
-				When to Increment Stage: when values are increasing
-				*/
-				if (!loopStarted) // do once
-				{
-					loopStarted = true;
-					turnRight();
-					loopStarted = true;
-				}
-				else
-				{
-					reading = analogRead(ci_Light_Sensor);
-
-					if (reading > previousReading) // if time to turn or done finding source
-					{
-						halt();
-						loopStarted = false;
-						stage++;
-					}
-
-					previousReading = reading;
-				}
-				break;
-			case 12:
-				/*
-				Position: 20cm right from 4th stop (aligned)
-				What Doing: extend and open claw
-				When to Increment Stage: when done extending and opening claw
-				*/
-				stage++;
-				break;
-			case 13:
 				/*
 				Position: 20cm right from 4th stop (aligned, claw extended and opened)
 				What Doing: s
 				When to Increment Stage: until ultrasonic sensor reads 6cm
 				*/
-				if (sensorDistance() <= 6)
+				/*int x;
+				Ping();
+				x = sensorDistance();*/
+
+				int x;
+				x = sensorDistance();
+				Ping();
+				goForward();
+
+				if (x < 5)
 				{
 					halt();
 					stage++;
 				}
-				else
-				{
-					goForward();
-				}
+
 				break;
-			case 14:
+			case 12:
+				/*
+				Position:  6cm right from 4th stop
+				What Doing: turns left, until threshold light value
+				When to Increment Stage: until threshold light value
+				*/
+
+				stage++;
+
+				/*turnRight();
+
+				if (analogRead(ci_Light_Sensor) < 100)
+					stage++;*/
+				break;
+			case 13:
 				/*
 				Position: 6cm right from 4th stop (aligned, claw extended and opened)
 				What Doing:close claw
@@ -589,23 +547,24 @@ void loop()
 				delay(1000);
 				stage++;
 				break;
-			case 15:
+			case 14:
 				/*
 				Position: 6cm right from 4th stop (got the shit)
 				What Doing: reverse
 				When to Increment Stage: sensor reads 25cm away
 				*/
-				if (sensorDistance() >= 25)
+				int y;
+				y = sensorDistance();
+				Ping();
+				goBackward();
+
+				if (y > 10)
 				{
 					halt();
 					stage++;
 				}
-				else
-				{
-					goBackward();
-				}
 				break;
-			case 16:
+			case 15:
 				/*
 				Position: 25cm right from 4th stop (got the shit)
 				What Doing: calculate turn right 45 degrees
@@ -626,7 +585,7 @@ void loop()
 					stage++;
 				}
 				break;
-			case 17:
+			case 16:
 				/*
 				Position:  25cm right, 45 degrees from 4th stop (got the shit)
 				What Doing: straight slowly
@@ -641,7 +600,7 @@ void loop()
 					goForwardSlowly();
 				}
 				break;
-			case 18:
+			case 17:
 				/*
 				Position: after branch 3
 				What Doing: fl
@@ -652,7 +611,7 @@ void loop()
 				else
 					followLine();
 				break;
-			case 19:
+			case 18:
 				/*
 				Position: branch 3
 				What Doing: straight, slightly right
@@ -667,7 +626,7 @@ void loop()
 					veerRight(30);
 				}
 				break;
-			case 20:
+			case 19:
 				/*
 				Position: before branch 3
 				What Doing: fl
@@ -678,7 +637,7 @@ void loop()
 				else
 					followLine();
 				break;
-			case 21:
+			case 20:
 				/*
 				Position: stop 3
 				What Doing: straight
@@ -691,7 +650,7 @@ void loop()
 				else
 					goForward();
 				break;
-			case 22:
+			case 21:
 				/*
 				Position: after branch 2
 				What Doing: fl
@@ -702,7 +661,7 @@ void loop()
 				else
 					followLine();
 				break;
-			case 23:
+			case 22:
 				/*
 				Position: branch 2
 				What Doing: straight, slightly left
@@ -717,7 +676,7 @@ void loop()
 					veerLeft(30);
 				}
 				break;
-			case 24:
+			case 23:
 				/*
 				Position: before branch 2
 				What Doing: fl
@@ -728,7 +687,7 @@ void loop()
 				else
 					followLine();
 				break;
-			case 25:
+			case 24:
 				/*
 				Position: stop 2
 				What Doing: staight
@@ -741,7 +700,7 @@ void loop()
 				else
 					goForward();
 				break;
-			case 26:
+			case 25:
 				/*
 				Position: after branch 1
 				What Doing: fl
@@ -752,7 +711,7 @@ void loop()
 				else
 					followLine();
 				break;
-			case 27:
+			case 26:
 				/*
 				Position: branch 1
 				What Doing: straight, slightly left
@@ -767,7 +726,7 @@ void loop()
 					veerLeft(30);
 				}
 				break;
-			case 28:
+			case 27:
 				/*
 				Position: before branch 1
 				What Doing: fl
@@ -778,7 +737,7 @@ void loop()
 				else
 					followLine();
 				break;
-			case 29:
+			case 28:
 				/*
 				Position: stop 1
 				What Doing: stop, set mode = 0 for entire program
@@ -1208,6 +1167,5 @@ void closeClaw()
 int sensorDistance()
 {
 	Ping();
-
 	return (ul_Echo_Time / 58);
 }
