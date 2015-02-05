@@ -132,7 +132,7 @@ boolean middleOnLine;
 boolean rightOnLine;
 
 // speed factor
-int speedFactor = 100;
+int speedFactor = 130;
 
 // debugging variables
 byte serialBuffer;
@@ -143,7 +143,7 @@ long leftEncoderStopTime = 0;
 long rightEncoderStopTime = 0;
 
 // stage variables
-byte stage = 0;
+byte stage = 6;
 
 // variable for open loop functions
 boolean loopStarted = false;
@@ -289,7 +289,7 @@ void loop()
 		servo_LeftMotor.writeMicroseconds(ci_Left_Motor_Stop);
 		servo_RightMotor.writeMicroseconds(ci_Right_Motor_Stop);
 		servo_ArmMotor.write(ci_Arm_Servo_Retracted);
-		// servo_GripMotor.writeMicroseconds(ci_Grip_Motor_Closed);
+		servo_GripMotor.writeMicroseconds(ci_Grip_Motor_Neutral);
 
 		// code showing testing of claw opening
 		if (Serial.available())
@@ -315,6 +315,8 @@ void loop()
 
 		ui_Mode_Indicator_Index = 0;
 
+		Serial.println(analogRead(ci_Light_Sensor));
+
 		break;
 	}
 
@@ -338,9 +340,9 @@ void loop()
 			Serial.println(ul_Grip_Motor_Position, DEC);
 #endif
 			/***************************************************************************************
-			Add line tracking code here.
-			Adjust motor speed according to information from line tracking sensors and
-			possibly encoder counts.
+			* 			Add line tracking code here.
+			* 			Adjust motor speed according to information from line tracking sensors and
+			* 			possibly encoder counts.
 			/*************************************************************************************/
 			Serial.println(stage);
 
@@ -438,7 +440,7 @@ void loop()
 				{
 					loopStarted = true;
 					halt();
-					calcRightTurn(2800,10);
+					calcRightTurn(2800, 20);
 					goForward();
 				}
 				else if (doneRightTurn())
@@ -449,17 +451,11 @@ void loop()
 				}
 				break;
 			case 8:
-				/*
-				Position: 4th stop + 6cm
-				What Doing: stop, then calculates how to turn 90 degrees once
-				When to Increment Stage: done turning right
-				*/
-				// code runs once to calculate
 				if (!loopStarted)
 				{
 					loopStarted = true;
 					halt();
-					calcRightTurn(2800, 90);
+					calcRightTurn(2800, 120);
 					turnRight();
 				}
 				else if (doneRightTurn())
@@ -470,45 +466,34 @@ void loop()
 				}
 				break;
 			case 9:
-				/*
-				Position: 4th stop + 6cm + turned right
-				What Doing: opens shit
-				When to Increment Stage: auto
-				*/
+				if (!loopStarted)
+				{
+					loopStarted = true;
+					halt();
+					calcRightTurn(2800, 120);
+					goForward();
+				}
+				else if (doneRightTurn())
+				{
+					halt();
+					loopStarted = false;
+					stage++;
+				}
+				break;
+			case 10:
 				extendArm();
 				delay(1000);
 				openClaw();
 				delay(1000);
 				stage++;
-				/*if (sensorDistance() < 6)
-				{
-					halt();
-					stage++;
-				}
-				else
-					goForward();
-				break;*/
-			case 10:
-				/*
-				Position:  20cm right from 4th stop
-				What Doing: turns left, until threshold light value
-				When to Increment Stage: until threshold light value
-				*/
-					turnRight();
-
-					if (analogRead(ci_Light_Sensor) < 110)
-						stage++;
 				break;
 			case 11:
-				/*
-				Position: 20cm right from 4th stop (aligned, claw extended and opened)
-				What Doing: s
-				When to Increment Stage: until ultrasonic sensor reads 6cm
-				*/
-				/*int x;
-				Ping();
-				x = sensorDistance();*/
+				turnRightSlowly();
 
+				if (analogRead(ci_Light_Sensor) < 100)
+					stage++;
+				break;
+			case 12:
 				int x;
 				x = sensorDistance();
 				Ping();
@@ -520,62 +505,24 @@ void loop()
 					stage++;
 				}
 
-				break;
-			case 12:
-				/*
-				Position:  6cm right from 4th stop
-				What Doing: turns left, until threshold light value
-				When to Increment Stage: until threshold light value
-				*/
-
-				stage++;
-
-				/*turnRight();
-
-				if (analogRead(ci_Light_Sensor) < 100)
-					stage++;*/
+				Serial.println(x);
 				break;
 			case 13:
-				/*
-				Position: 6cm right from 4th stop (aligned, claw extended and opened)
-				What Doing:close claw
-				When to Increment Stage: after 1s
-				*/
 				closeClaw();
-				delay(1000);
-				retractArm();
 				delay(1000);
 				stage++;
 				break;
 			case 14:
-				/*
-				Position: 6cm right from 4th stop (got the shit)
-				What Doing: reverse
-				When to Increment Stage: sensor reads 25cm away
-				*/
-				int y;
-				y = sensorDistance();
-				Ping();
 				goBackward();
-
-				if (y > 10)
-				{
-					halt();
+				if ((leftOnLine && middleOnLine) || (middleOnLine && rightOnLine) )
 					stage++;
-				}
 				break;
 			case 15:
-				/*
-				Position: 25cm right from 4th stop (got the shit)
-				What Doing: calculate turn right 45 degrees
-				When to Increment Stage: done turning right 45 degrees
-				*/
-				// code runs once to calculate
 				if (!loopStarted)
 				{
 					loopStarted = true;
 					halt();
-					calcRightTurn(2800, 45);
+					calcRightTurn(2800, 50);
 					turnRight();
 				}
 				else if (doneRightTurn())
@@ -586,45 +533,18 @@ void loop()
 				}
 				break;
 			case 16:
-				/*
-				Position:  25cm right, 45 degrees from 4th stop (got the shit)
-				What Doing: straight slowly
-				When to Increment Stage: read middle high
-				*/
-				if (middleOnLine)
-				{
+				turnRight();
+				if (leftOnLine)
 					stage++;
-				}
-				else
-				{
-					goForwardSlowly();
-				}
 				break;
 			case 17:
-				/*
-				Position: after branch 3
-				What Doing: fl
-				When to Increment Stage: reads 111 or 101
-				*/
-				if ((leftOnLine) && (rightOnLine))
-					stage++;
-				else
-					followLine();
+				followLine();
 				break;
 			case 18:
-				/*
-				Position: branch 3
-				What Doing: straight, slightly right
-				When to Increment Stage: 1x0 or 0x1 or 0x0
-				*/
-				if (((leftOnLine) && (!rightOnLine)) || ((!leftOnLine) && (rightOnLine)) || ((!leftOnLine) && (!rightOnLine)))
-				{
+				if (!(leftOnLine&&middleOnLine&&rightOnLine))
 					stage++;
-				}
 				else
-				{
-					veerRight(30);
-				}
+					goForward();
 				break;
 			case 19:
 				/*
@@ -747,11 +667,8 @@ void loop()
 				stage = 0;
 				ui_Robot_State_Index = 0;
 				break;
-			default:
-				// dance
-				break;
 			}
-
+		
 #ifdef DEBUG_MOTORS  
 			Serial.print("Motors: Default: ");
 			Serial.print(ui_Motors_Speed);
@@ -1021,14 +938,20 @@ void Ping()
 
 void turnLeft()
 {
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor * 2), 1600, 2100);
-	ui_Left_Motor_Speed = ci_Left_Motor_Stop;
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor * 3.5), 1600, 2100);
+	ui_Left_Motor_Speed = ci_Right_Motor_Stop;
 	implementMotorSpeed();
 }
 void turnRight()
 {
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor * 3.5), 1600, 2100);
+	ui_Right_Motor_Speed = ci_Left_Motor_Stop;
+	implementMotorSpeed();
+}
+void turnRightSlowly()
+{
 	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor * 2), 1600, 2100);
-	ui_Right_Motor_Speed = ci_Right_Motor_Stop;
+	ui_Right_Motor_Speed = ci_Left_Motor_Stop;
 	implementMotorSpeed();
 }
 void goForward()
