@@ -144,7 +144,7 @@ long leftEncoderStopTime = 0;
 long rightEncoderStopTime = 0;
 
 // stage variables
-byte stage = 0;
+byte stage = 6;
 
 // variable for open loop functions
 boolean loopStarted = false;
@@ -153,6 +153,8 @@ boolean loopStarted = false;
 int reading = 0;
 int previousReading = 0;
 boolean startedDecreasing;
+
+int count = 0;
 
 unsigned int  ui_Robot_State_Index = 0;
 //0123456789ABCDEF
@@ -483,16 +485,16 @@ void loop()
 				break;
 			case 10:
 				extendArm();
-				delay(100);
+				delay(200);
 				openClaw();
-				delay(100);
+				delay(200);
 				stage++;
 				break;
 			case 11:
-				turnRightSlowly();
-
 				if (analogRead(ci_Light_Sensor) < 100)
 					stage++;
+				else
+					turnRightSlowly();
 				break;
 			case 12:
 				int x;
@@ -506,11 +508,11 @@ void loop()
 					stage++;
 				}
 
-				Serial.println(x);
 				break;
 			case 13:
 				closeClaw();
-				delay(100);
+				delay(500);
+				liftArm();
 				stage++;
 				break;
 			case 14:
@@ -619,13 +621,15 @@ void loop()
 				What Doing: straight, slightly left
 				When to Increment Stage: 1x0 or 0x1 or 0x0
 				*/
-				if (((leftOnLine) && (!rightOnLine)) || ((!leftOnLine) && (rightOnLine)) || ((!leftOnLine) && (!rightOnLine)))
+				if ((((leftOnLine) && (!rightOnLine)) || ((!leftOnLine) && (rightOnLine)) || ((!leftOnLine) && (!rightOnLine))) || (count > 1))
 				{
 					stage++;
+					count = 0;
 				}
 				else
 				{
 					veerLeft(100);
+					count++;
 				}
 				break;
 			case 25:
@@ -669,13 +673,15 @@ void loop()
 				What Doing: straight, slightly left
 				When to Increment Stage: 1x0 or 0x1 or 0x0
 				*/
-				if (((leftOnLine) && (!rightOnLine)) || ((!leftOnLine) && (rightOnLine)) || ((!leftOnLine) && (!rightOnLine)))
+				if ((((leftOnLine) && (!rightOnLine)) || ((!leftOnLine) && (rightOnLine)) || ((!leftOnLine) && (!rightOnLine))) || (count > 1))
 				{
 					stage++;
+					count = 0;
 				}
 				else
 				{
 					veerLeft(100);
+					count++;
 				}
 				break;
 			case 29:
@@ -705,12 +711,9 @@ void loop()
 				}
 				break;
 			case 31:
-				liftArm();
-				delay(500);
 				openClaw();
 				delay(500);
 				retractArm();
-				delay(500);
 				stage++;
 				break;
 			default:
@@ -730,9 +733,9 @@ void loop()
 					halt();
 					loopStarted = false;
 					extendArm();
-					delay(100);
+					delay(200);
 					retractArm();
-					delay(100);
+					delay(200);
 				}
 				break;
 			}
@@ -1018,7 +1021,7 @@ void turnRight()
 }
 void turnRightSlowly()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor*2), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1600, 2100);
 	ui_Right_Motor_Speed = ci_Left_Motor_Stop;
 	implementMotorSpeed();
 }
@@ -1052,8 +1055,8 @@ void halt()
 // goes mostly forward slowly, but slightly to the left
 void veerLeft(byte intensity)
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor*1.), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor*2.7 + intensity), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor*1.8), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor*3 + intensity), 1600, 2100);
 	implementMotorSpeed();
 }
 // goes mostly forward slowly, but slightly to the right
