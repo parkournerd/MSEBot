@@ -91,6 +91,7 @@ const int ci_Grip_Motor_Closed = 700;
 const int ci_Grip_Motor_Neutral = 1500;
 const int ci_Arm_Servo_Retracted = 70;      //  "
 const int ci_Arm_Servo_Extended = 110;      //  "
+const int ci_Arm_Servo_Mid = 95;      //  "
 const int ci_Display_Time = 500;
 const int ci_Line_Tracker_Calibration_Interval = 100;
 const int ci_Line_Tracker_Cal_Measures = 20;
@@ -143,7 +144,7 @@ long leftEncoderStopTime = 0;
 long rightEncoderStopTime = 0;
 
 // stage variables
-byte stage = 6;
+byte stage = 0;
 
 // variable for open loop functions
 boolean loopStarted = false;
@@ -288,8 +289,8 @@ void loop()
 		Ping();
 		servo_LeftMotor.writeMicroseconds(ci_Left_Motor_Stop);
 		servo_RightMotor.writeMicroseconds(ci_Right_Motor_Stop);
-		servo_ArmMotor.write(ci_Arm_Servo_Retracted);
-		servo_GripMotor.writeMicroseconds(ci_Grip_Motor_Neutral);
+		retractArm();
+		apatheticClaw();
 
 		// code showing testing of claw opening
 		if (Serial.available())
@@ -499,7 +500,7 @@ void loop()
 				Ping();
 				goForward();
 
-				if (x < 4)
+				if (x < 5)
 				{
 					halt();
 					stage++;
@@ -513,7 +514,7 @@ void loop()
 				stage++;
 				break;
 			case 14:
-				if ((leftOnLine && middleOnLine) || (middleOnLine && rightOnLine))
+				if (middleOnLine && rightOnLine)
 					stage++;
 				else
 					goBackward();
@@ -523,7 +524,7 @@ void loop()
 				{
 					loopStarted = true;
 					halt();
-					calcRightTurn(2800, 40);
+					calcRightTurn(2800, 20);
 					turnRightSlowly();
 				}
 				else if (doneRightTurn())
@@ -534,12 +535,16 @@ void loop()
 				}
 				break;
 			case 16:
-				turnRightSlowly();
 				if (leftOnLine)
 					stage++;
+				else 
+					turnRightSlowly();
 				break;
 			case 17:
-				followLine();
+				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+					stage++;
+				else
+					followLine();
 				break;
 			case 18:
 				if (!(leftOnLine&&middleOnLine&&rightOnLine))
@@ -553,12 +558,38 @@ void loop()
 				What Doing: fl
 				When to Increment Stage: see 111
 				*/
-				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+				if (leftOnLine && rightOnLine)
 					stage++;
 				else
 					followLine();
 				break;
 			case 20:
+				/*
+				Position: branch 3
+				What Doing: straight, slightly right
+				When to Increment Stage: 1x0 or 0x1 or 0x0
+				*/
+				if (((leftOnLine) && (!rightOnLine)) || ((!leftOnLine) && (rightOnLine)) || ((!leftOnLine) && (!rightOnLine)))
+				{
+					stage++;
+				}
+				else
+				{
+					veerRight(100);
+				}
+				break;
+			case 21:
+				/*
+				Position: before branch 3
+				What Doing: fl
+				When to Increment Stage: see 111
+				*/
+				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+					stage++;
+				else
+					followLine();
+				break;
+			case 22:
 				/*
 				Position: stop 3
 				What Doing: straight
@@ -571,7 +602,7 @@ void loop()
 				else
 					goForward();
 				break;
-			case 21:
+			case 23:
 				/*
 				Position: after branch 2
 				What Doing: fl
@@ -582,7 +613,7 @@ void loop()
 				else
 					followLine();
 				break;
-			case 22:
+			case 24:
 				/*
 				Position: branch 2
 				What Doing: straight, slightly left
@@ -594,10 +625,10 @@ void loop()
 				}
 				else
 				{
-					veerLeft(30);
+					veerLeft(100);
 				}
 				break;
-			case 23:
+			case 25:
 				/*
 				Position: before branch 2
 				What Doing: fl
@@ -608,7 +639,7 @@ void loop()
 				else
 					followLine();
 				break;
-			case 24:
+			case 26:
 				/*
 				Position: stop 2
 				What Doing: staight
@@ -621,7 +652,7 @@ void loop()
 				else
 					goForward();
 				break;
-			case 25:
+			case 27:
 				/*
 				Position: after branch 1
 				What Doing: fl
@@ -632,7 +663,7 @@ void loop()
 				else
 					followLine();
 				break;
-			case 26:
+			case 28:
 				/*
 				Position: branch 1
 				What Doing: straight, slightly left
@@ -644,10 +675,10 @@ void loop()
 				}
 				else
 				{
-					veerLeft(30);
+					veerLeft(100);
 				}
 				break;
-			case 27:
+			case 29:
 				/*
 				Position: before branch 1
 				What Doing: fl
@@ -658,15 +689,51 @@ void loop()
 				else
 					followLine();
 				break;
-			case 28:
-				/*
-				Position: stop 1
-				What Doing: stop, set mode = 0 for entire program
-				When to Increment Stage: 0
-				*/
-				halt();
+			case 30:
+				if (!loopStarted)
+				{
+					loopStarted = true;
+					halt();
+					calcLeftTurn(2800, 60);
+					turnLeft();
+				}
+				else if (doneLeftTurn())
+				{
+					halt();
+					loopStarted = false;
+					stage++;
+				}
+				break;
+			case 31:
+				liftArm();
+				delay(500);
+				openClaw();
+				delay(500);
+				retractArm();
+				delay(500);
+				stage++;
+				break;
+			default:
+				// dance
+				/*halt();
 				stage = 0;
-				ui_Robot_State_Index = 0;
+				ui_Robot_State_Index = 0;*/
+				if (!loopStarted)
+				{
+					loopStarted = true;
+					halt();
+					calcRightTurn(2800, 90);
+					turnRight();
+				}
+				else if (doneRightTurn())
+				{
+					halt();
+					loopStarted = false;
+					extendArm();
+					delay(100);
+					retractArm();
+					delay(100);
+				}
 				break;
 			}
 		
@@ -951,7 +1018,7 @@ void turnRight()
 }
 void turnRightSlowly()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor*2), 1600, 2100);
 	ui_Right_Motor_Speed = ci_Left_Motor_Stop;
 	implementMotorSpeed();
 }
@@ -985,15 +1052,15 @@ void halt()
 // goes mostly forward slowly, but slightly to the left
 void veerLeft(byte intensity)
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor + intensity), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor*1.), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor*2.7 + intensity), 1600, 2100);
 	implementMotorSpeed();
 }
 // goes mostly forward slowly, but slightly to the right
 void veerRight(byte intensity)
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor + intensity), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor*1.8 + intensity), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor*1.8), 1600, 2100);
 	implementMotorSpeed();
 }
 
@@ -1070,6 +1137,10 @@ void extendArm()
 void retractArm()
 {
 	servo_ArmMotor.write(ci_Arm_Servo_Retracted);
+}
+void liftArm()
+{
+	servo_ArmMotor.write(ci_Arm_Servo_Mid);
 }
 
 void apatheticClaw()
