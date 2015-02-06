@@ -482,9 +482,9 @@ void loop()
 				break;
 			case 10:
 				extendArm();
-				delay(1000);
+				delay(100);
 				openClaw();
-				delay(1000);
+				delay(100);
 				stage++;
 				break;
 			case 11:
@@ -499,7 +499,7 @@ void loop()
 				Ping();
 				goForward();
 
-				if (x < 5)
+				if (x < 4)
 				{
 					halt();
 					stage++;
@@ -509,21 +509,22 @@ void loop()
 				break;
 			case 13:
 				closeClaw();
-				delay(1000);
+				delay(100);
 				stage++;
 				break;
 			case 14:
-				goBackward();
-				if ((leftOnLine && middleOnLine) || (middleOnLine && rightOnLine) )
+				if ((leftOnLine && middleOnLine) || (middleOnLine && rightOnLine))
 					stage++;
+				else
+					goBackward();
 				break;
 			case 15:
 				if (!loopStarted)
 				{
 					loopStarted = true;
 					halt();
-					calcRightTurn(2800, 50);
-					turnRight();
+					calcRightTurn(2800, 40);
+					turnRightSlowly();
 				}
 				else if (doneRightTurn())
 				{
@@ -533,7 +534,7 @@ void loop()
 				}
 				break;
 			case 16:
-				turnRight();
+				turnRightSlowly();
 				if (leftOnLine)
 					stage++;
 				break;
@@ -950,26 +951,26 @@ void turnRight()
 }
 void turnRightSlowly()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor * 2), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1600, 2100);
 	ui_Right_Motor_Speed = ci_Left_Motor_Stop;
 	implementMotorSpeed();
 }
 void goForward()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor * 2), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor * 2), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor*1.5), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor*1.5), 1600, 2100);
 	implementMotorSpeed();
 }
 void goForwardSlowly()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor * 2), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor * 2), 1600, 2100);
 	implementMotorSpeed();
 }
 void goBackward()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - speedFactor * 2), 900, 1400);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop - speedFactor * 2), 900, 1400);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - speedFactor*2), 900, 1400);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop - speedFactor*3.1), 900, 1400);
 	implementMotorSpeed();
 }
 void halt()
