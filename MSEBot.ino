@@ -138,8 +138,8 @@ boolean rightOnLine;
 
 // line following
 long confidence = 0;
-long confidenceIncrement = 20;
-long confidenceMin = 200;
+long confidenceIncrement = 50;
+long confidenceMin = 100;
 long confidenceMax = 600;
 
 byte direction = 0;
@@ -325,8 +325,6 @@ void loop()
 
 		ui_Mode_Indicator_Index = 0;
 
-		// Serial.println(analogRead(ci_Light_Sensor));
-
 		break;
 	}
 
@@ -379,7 +377,7 @@ void loop()
 				if (!atStop())
 				{
 					if (!checkedAtStop(1))
-					stage++;
+						stage++;
 				}
 				else
 					goForward(confidence);
@@ -495,9 +493,7 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					halt();
 					calcRightTurn(2800, 120);
-
 					goForward(400); // double speed as before
 				}
 				else if (doneRightTurn())
@@ -532,7 +528,6 @@ void loop()
 				x = sensorDistance();
 				Ping();
 
-
 				if (x < 5)
 				{
 					halt();
@@ -566,7 +561,10 @@ void loop()
 
 					// stops going backward if line detected twice
 					if ((leftOnLine && middleOnLine) || (middleOnLine && rightOnLine))
+					{
+						halt();
 						stage++;
+					}
 				}
 				else
 					veerRightBackward(240,0); // a little bit faster than before
@@ -580,13 +578,11 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					halt();
 					calcRightTurn(2800, 15);
 					goForward(200); // same speed
 				}
 				else if (doneRightTurn())
 				{
-					halt();
 					loopStarted = false;
 					stage++;
 				}
@@ -625,13 +621,11 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					halt();
 					calcRightTurn(2800, 15); // further
 					goForward(300); // 1.5x speed
 				}
 				else if (doneRightTurn())
 				{
-					halt();
 					loopStarted = false;
 					stage++;
 				}
@@ -702,13 +696,11 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					halt();
 					calcRightTurn(2800, 15); // further
 					goForward(300); // 1.5x speed
 				}
 				else if (doneRightTurn())
 				{
-					halt();
 					loopStarted = false;
 					stage++;
 				}
@@ -779,13 +771,11 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					halt();
 					calcRightTurn(2800, 15); // further
 					goForward(300); // 1.5x speed
 				}
 				else if (doneRightTurn())
 				{
-					halt();
 					loopStarted = false;
 					stage++;
 				}
@@ -828,7 +818,6 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					halt();
 					calcLeftTurn(2800, 45); // halved because on stop, tweak
 					turnLeftOnSpot(240);
 				}
@@ -851,6 +840,7 @@ void loop()
 				delay(200);
 				openClaw();
 				delay(1200);
+				halt();
 				stage++;
 				break;
 			case 32:
