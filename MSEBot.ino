@@ -106,8 +106,8 @@ unsigned int ui_Left_Line_Tracker_Data;
 unsigned int ui_Middle_Line_Tracker_Data;
 unsigned int ui_Right_Line_Tracker_Data;
 unsigned int ui_Motors_Speed = 1900;        // Default run speed
-unsigned int ui_Left_Motor_Speed;
-unsigned int ui_Right_Motor_Speed;
+unsigned long ui_Left_Motor_Speed;
+unsigned long ui_Right_Motor_Speed;
 unsigned long ul_Left_Motor_Position;
 unsigned long ul_Right_Motor_Position;
 unsigned long ul_Grip_Motor_Position;
@@ -137,21 +137,22 @@ boolean middleOnLine;
 boolean rightOnLine;
 
 // line following
-byte confidence = 0;
+long confidence = 0;
+long confidenceIncrement = 20;
+long confidenceMin = 200;
+long confidenceMax = 600;
+
 byte direction = 0;
 
 // variable for open loop functions
-boolean loopStarted = false;
+boolean loopStarted = true;
 long leftEncoderStopTime = 0;
 long rightEncoderStopTime = 0;
 const int leftEncoderCalibration = 2800;
 const int rightEncoderCalibration = 2800;
 
 // stage variables
-int stage = 6;
-
-// speed factor
-int speedFactor = 130;// 130
+int stage = 0;
 
 unsigned int  ui_Robot_State_Index = 0;
 //0123456789ABCDEF
@@ -247,7 +248,6 @@ void setup() {
 
 void loop()
 {
-
 	if ((millis() - ul_3_Second_timer) > 3000)
 	{
 		bt_3_S_Time_Up = true;
@@ -289,7 +289,17 @@ void loop()
 		servo_LeftMotor.writeMicroseconds(ci_Left_Motor_Stop);
 		servo_RightMotor.writeMicroseconds(ci_Right_Motor_Stop);
 		retractArm();
-		openClaw();
+
+		// default value is true, this causes claw to opened open and then motor off to conserve power.
+		if (loopStarted)
+		{
+			openClaw();
+			delay(500);
+		}
+		else
+		{
+			apatheticClaw();
+		}
 
 		// code showing testing of claw opening
 		if (Serial.available())
@@ -354,7 +364,8 @@ void loop()
 				*/
 				if (atStop())
 				{
-					stage++;
+					if (checkedAtStop(1))
+						stage++;
 				}
 				else
 					followLine();
@@ -365,10 +376,13 @@ void loop()
 				What Doing: go straight
 				When to Increment Stage: not 111
 				*/
-				if (!(leftOnLine&&middleOnLine&&rightOnLine))
+				if (!atStop())
+				{
+					if (!checkedAtStop(1))
 					stage++;
+				}
 				else
-					goForward();
+					goForward(confidence);
 				break;
 			case 2:
 				/*
@@ -377,7 +391,10 @@ void loop()
 				When to Increment Stage: see 111
 				*/
 				if (atStop())
-					stage++;
+				{
+					if (checkedAtStop(1))
+						stage++;
+				}
 				else
 					followLine();
 				break;
@@ -387,10 +404,13 @@ void loop()
 				What Doing: go straight
 				When to Increment Stage: not 111
 				*/
-				if (!(leftOnLine&&middleOnLine&&rightOnLine))
-					stage++;
+				if (!atStop())
+				{
+					if (!checkedAtStop(1))
+						stage++;
+				}
 				else
-					goForward();
+					goForward(confidence);
 				break;
 			case 4:
 				/*
@@ -399,7 +419,10 @@ void loop()
 				When to Increment Stage: see 111
 				*/
 				if (atStop())
-					stage++;
+				{
+					if (checkedAtStop(1))
+						stage++;
+				}
 				else
 					followLine();
 				break;
@@ -409,10 +432,13 @@ void loop()
 				What Doing: s
 				When to Increment Stage: not 111
 				*/
-				if (!(leftOnLine&&middleOnLine&&rightOnLine))
-					stage++;
+				if (!atStop())
+				{
+					if (!checkedAtStop(1))
+						stage++;
+				}
 				else
-					goForward();
+					goForward(confidence);
 				break;
 			case 6:
 				/*
@@ -422,8 +448,11 @@ void loop()
 				*/
 				if (atStop())
 				{
-					halt();
-					stage++;
+					if (checkedAtStop(1))
+					{
+						halt();
+						stage++;
+					}
 				}
 				else
 					followLine();
@@ -431,15 +460,14 @@ void loop()
 			case 7:
 				/*
 				Position: 4th stop
-				What Doing: stop go forward
-				When to Increment Stage: until for 6cm
+				What Doing: turning right approximately on spot to be on left side of light
+				When to Increment Stage: done turning right
 				*/
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					halt();
 					calcRightTurn(2800, 120);
-					turnRight();
+					turnRight(480); // same turn speed as before
 				}
 				else if (doneRightTurn())
 				{
@@ -449,18 +477,28 @@ void loop()
 				}
 				break;
 			case 8:
+				/*
+				Position: 4th stop,  done turning right
+				What Doing: extending arm and opening claw early to save time
+				When to Increment Stage: started extending arm and opening claw
+				*/
 				extendArm();
 				openClaw();
 				stage++;
 				break;
 			case 9:
+				/*
+				Position: done turning right, arm extend, and claw opened
+				What Doing: moving forward toward the beacon
+				When to Increment Stage: done moving toward the beacon
+				*/
 				if (!loopStarted)
 				{
 					loopStarted = true;
 					halt();
 					calcRightTurn(2800, 120);
 
-					goForward();
+					goForward(400); // double speed as before
 				}
 				else if (doneRightTurn())
 				{
@@ -470,46 +508,81 @@ void loop()
 				}
 				break;
 			case 10:
+				/*
+				Position: in front of beacon, not aligned
+				What Doing: turning right until aligned with the beacon
+				When to Increment Stage: aligned with the beacon
+				*/
 				if (analogRead(ci_Light_Sensor) < 100)
+				{
+					halt();
 					stage++;
+				}
 				else
-					turnRightOnSpot();
+					turnRightOnSpot(240); // double speed as before
 				break;
 			case 11:
-				stage++;
-			case 12:
+				/*
+				Position: in front of beacon, aligned
+				What Doing: moving forward until 5cm or less away from the beacon
+				When to Increment Stage: 5cm or less away from the beacon
+				*/
+				// sensor still not understood
 				int x;
 				x = sensorDistance();
 				Ping();
 
-				goForward();
 
 				if (x < 5)
 				{
 					halt();
 					stage++;
 				}
-
+				else
+				{
+					goForward(200); // same speed as before
+				}
 				break;
-			case 13:
+			case 12:
+				/*
+				Position: 5cm from beacon
+				What Doing: closing the claw around the beacon, waiting, and then lifting the arm
+				When to Increment Stage: arm lift started
+				*/
 				closeClaw();
-				delay(1500);
+				delay(1200); // minimum value needs to be found
 				liftArm();
 				stage++;
 				break;
-			case 14:
+			case 13:
+				/*
+				Position: 5cm from beacon, got beacon
+				What Doing: move backward ontop section after branch 3
+				When to Increment Stage: when 110 or 011 seen twice in a row
+				*/
 				if ((leftOnLine && middleOnLine) || (middleOnLine && rightOnLine))
-					stage++;
+				{
+					readLineTrackers();
+
+					// stops going backward if line detected twice
+					if ((leftOnLine && middleOnLine) || (middleOnLine && rightOnLine))
+						stage++;
+				}
 				else
-					goBackward();
+					veerRightBackward(240,0); // a little bit faster than before
 				break;
-			case 15:
+			case 14:
+				/*
+				Position: section after branch 3
+				What Doing: go forward a bit to get off line
+				When to Increment Stage: done going forward
+				*/
 				if (!loopStarted)
 				{
 					loopStarted = true;
 					halt();
 					calcRightTurn(2800, 15);
-					goForward();
+					goForward(200); // same speed
 				}
 				else if (doneRightTurn())
 				{
@@ -518,115 +591,197 @@ void loop()
 					stage++;
 				}
 				break;
-			case 16:
+			case 15:
+				/*
+				Position: re-capturing line
+				What Doing: re-capturing line
+				When to Increment Stage: line recaptured (left line tracking is on the line)
+				*/
 				if (leftOnLine)
 					stage++;
 				else
-					veerRight(200);
+					veerRight(100, 200); // slower than before to increasing angle and ensure line recapturing
 				break;
-			case 17:
-				if (leftOnLine && !middleOnLine && rightOnLine)
+			case 16:
+				/*
+				Position: after branch 3, line re-captured
+				What Doing: following line
+				When to Increment Stage: when branch detected
+				*/
+				if (atBranch())
+				{
+					halt();
 					stage++;
+				}
 				else
 					followLine();
 				break;
-			case 18:
+			case 17:
+				/*
+				Position: at branch 3, line re-captured
+				What Doing: going forward set distance
+				When to Increment Stage: done going forward
+				*/
 				if (!loopStarted)
 				{
 					loopStarted = true;
 					halt();
-					calcRightTurn(2800, 10);
-					goForward();
+					calcRightTurn(2800, 15); // further
+					goForward(300); // 1.5x speed
 				}
 				else if (doneRightTurn())
 				{
 					halt();
 					loopStarted = false;
 					stage++;
+				}
+				break;
+			case 18:
+				/*
+				Position: before branch 3
+				What Doing: veering right
+				When to Increment Stage: line recaptured (left line tracking is on the line)
+				*/
+				if (leftOnLine)
+				{
+					stage++;
+				}
+				else
+				{
+					veerRight(200,80);
 				}
 				break;
 			case 19:
-				if (leftOnLine)
+				/*
+				Position: after 3rd stop
+				What Doing: fl
+				When to Increment Stage: see 111
+				*/
+				if (atStop())
 				{
-					stage++;
+					if (checkedAtStop(1))
+						stage++;
 				}
 				else
-				{
-					veerRight(80);
-				}
+					followLine();
 				break;
 			case 20:
-				if (atStop())
-					stage++;
+				/*
+				Position:3rd stop
+				What Doing: s
+				When to Increment Stage: not 111
+				*/
+				if (!atStop())
+				{
+					if (!checkedAtStop(1))
+						stage++;
+				}
 				else
-					followLine();
+					goForward(confidence);
 				break;
 			case 21:
-				if (!(leftOnLine&&middleOnLine&&rightOnLine))
+				/*
+				Position: after branch 2
+				What Doing: following line
+				When to Increment Stage: when branch detected
+				*/
+				if (atBranch())
 				{
+					halt();
 					stage++;
 				}
 				else
-					goForward();
-				break;
-			case 22:
-				if (leftOnLine && !middleOnLine && rightOnLine)
-					stage++;
-				else
 					followLine();
 				break;
-			case 23:
+			case 22:
+				/*
+				Position: at branch 2
+				What Doing: going forward set distance
+				When to Increment Stage: done going forward
+				*/
 				if (!loopStarted)
 				{
 					loopStarted = true;
 					halt();
-					calcRightTurn(2800, 10);
-					goForward();
+					calcRightTurn(2800, 15); // further
+					goForward(300); // 1.5x speed
 				}
 				else if (doneRightTurn())
 				{
 					halt();
 					loopStarted = false;
 					stage++;
+				}
+				break;
+			case 23:
+				/*
+				Position: before branch 3
+				What Doing: veering left
+				When to Increment Stage: line recaptured (left line tracking is on the line)
+				*/
+				if (rightOnLine)
+				{
+					stage++;
+				}
+				else
+				{
+					veerLeft(200, 80);
 				}
 				break;
 			case 24:
-				if (rightOnLine)
+				/*
+				Position: after 2nd stop
+				What Doing: fl
+				When to Increment Stage: see 111
+				*/
+				if (atStop())
 				{
-					stage++;
+					if (checkedAtStop(1))
+						stage++;
 				}
 				else
-				{
-					veerLeft(160);
-				}
+					followLine();
 				break;
 			case 25:
-				if (atStop())
-					stage++;
+				/*
+				Position:2nd stop
+				What Doing: s
+				When to Increment Stage: not 111
+				*/
+				if (!atStop())
+				{
+					if (!checkedAtStop(1))
+						stage++;
+				}
 				else
-					followLine();
+					goForward(confidence);
 				break;
 			case 26:
-				if (!(leftOnLine&&middleOnLine&&rightOnLine))
+				/*
+				Position: after branch 1
+				What Doing: following line
+				When to Increment Stage: when branch detected
+				*/
+				if (atBranch())
 				{
+					halt();
 					stage++;
 				}
 				else
-					goForward();
-				break;
-			case 27:
-				if (leftOnLine && !middleOnLine && rightOnLine)
-					stage++;
-				else
 					followLine();
 				break;
-			case 28:
+			case 27:
+				/*
+				Position: at branch 1
+				What Doing: going forward set distance
+				When to Increment Stage: done going forward
+				*/
 				if (!loopStarted)
 				{
 					loopStarted = true;
 					halt();
-					calcRightTurn(2800, 10);
-					goForward();
+					calcRightTurn(2800, 15); // further
+					goForward(300); // 1.5x speed
 				}
 				else if (doneRightTurn())
 				{
@@ -635,29 +790,47 @@ void loop()
 					stage++;
 				}
 				break;
-			case 29:
+			case 28:
+				/*
+				Position: before branch 1
+				What Doing: veering left
+				When to Increment Stage: line recaptured (right line tracking is on the line)
+				*/
 				if (rightOnLine)
 				{
 					stage++;
 				}
 				else
 				{
-					veerLeft(160);
+					veerLeft(200, 80);
 				}
 				break;
-			case 30:
+			case 29:
+				/*
+				Position: after stop 1
+				What Doing: following line
+				When to Increment Stage: see 111 (once?)
+				*/
 				if (atStop())
+				{
+					halt();
 					stage++;
+				}
 				else
 					followLine();
 				break;
-			case 31:
+			case 30:
+				/*
+				Position: stop 1
+				What Doing: lefting left 90?
+				When to Increment Stage: done turning left
+				*/
 				if (!loopStarted)
 				{
 					loopStarted = true;
 					halt();
-					calcLeftTurn(2800, 90);
-					turnLeftOnSpot();
+					calcLeftTurn(2800, 45); // halved because on stop, tweak
+					turnLeftOnSpot(240);
 				}
 				else if (doneLeftTurn())
 				{
@@ -666,40 +839,31 @@ void loop()
 					stage++;
 				}
 				break;
-			case 32:
+			case 31:
+				/*
+				Position: in front of drop-box box, aligned hopefully
+				What Doing: drive forward slowly, extending arm, amd opening claw
+				When to Increment Stage: done opening claw
+				*/
+				goForward(100);
+				delay(200);
 				extendArm();
-				delay(1000);
+				delay(200);
 				openClaw();
-				delay(1000);
-				shakeArm();
-				retractArm();
-				delay(1000);
-				apatheticClaw();
+				delay(1200);
 				stage++;
 				break;
+			case 32:
+				/*
+				Position:  done opening claw, potentially with beacon still in claw
+				What Doing: shaking arm
+				When to Increment Stage: done shaking arm
+				*/
+				shakeArm();
+				stage++;
 			default:
-				halt();
-				// dance
-				/*halt();
-				stage = 0;
-				ui_Robot_State_Index = 0;*/
-				/*if (!loopStarted)
-				{
-					loopStarted = true;
-					halt();
-					calcRightTurn(2800, 90);
-					turnRight();
-				}
-				else if (doneRightTurn())
-				{
-					halt();
-					loopStarted = false;
-					extendArm();
-					delay(200);
-					retractArm();
-					delay(200);
-				}*/
-				break;
+				loopStarted = true; // causes mode 0 to reset arm and claw
+				ui_Robot_State_Index = 0; // enter mode 0
 			}
 
 #ifdef DEBUG_MOTORS  
@@ -981,28 +1145,6 @@ boolean atBranch()
 	else
 		return false;
 }
-boolean checkedAtStop(byte times)
-{
-	for (int i = 0; i < times; i++)
-	{
-		readLineTrackers();
-		if (!atStop())
-			return false;
-	}
-
-	return true;
-}
-boolean checkedAtBranched(byte times)
-{
-	for (int i = 0; i < times; i++)
-	{
-		readLineTrackers();
-		if (!atBranch())
-			return false;
-	}
-
-	return true;
-}
 boolean onTrack()
 {
 	if (!leftOnLine && middleOnLine && !rightOnLine)
@@ -1032,47 +1174,46 @@ boolean rightOnly()
 		return false;
 }
 
-// Basic Motions
-void turnLeft()
+boolean checkedAtStop(byte times)
 {
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor * 3), 1600, 2100);
+	for (int i = 0; i < times; i++)
+	{
+		readLineTrackers();
+		if (!atStop())
+			return false;
+	}
+
+	return true;
+}
+boolean checkedAtBranched(byte times)
+{
+	for (int i = 0; i < times; i++)
+	{
+		readLineTrackers();
+		if (!atBranch())
+			return false;
+	}
+
+	return true;
+}
+
+// Basic Motions
+void turnLeft(long speedFactor)
+{
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor), 1500, 2100);
 	ui_Left_Motor_Speed = ci_Right_Motor_Stop;
 	implementMotorSpeed();
 }
-void turnRight()
+void turnRight(long speedFactor)
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor * 3), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1500, 2100);
 	ui_Right_Motor_Speed = ci_Left_Motor_Stop;
 	implementMotorSpeed();
 }
-void turnLeftOnSpot()
+void goForward(long speedFactor)
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - speedFactor), 900, 1500);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor), 1600, 2100);
-	implementMotorSpeed();
-}
-void turnRightOnSpot()
-{
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop - speedFactor), 900, 1500);
-	implementMotorSpeed();
-}
-void goForward()
-{
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor*1.5), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor*1.5), 1600, 2100);
-	implementMotorSpeed();
-}
-void goForwardSlowly()
-{
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor*1.2), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor*1.2), 1600, 2100);
-	implementMotorSpeed();
-}
-void goBackward()
-{
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - speedFactor*1.8), 900, 1400);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop - speedFactor*1.8), 900, 1400);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1500, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor), 1500, 2100);
 	implementMotorSpeed();
 }
 void halt()
@@ -1081,26 +1222,42 @@ void halt()
 	ui_Right_Motor_Speed = ci_Right_Motor_Stop;
 	implementMotorSpeed();
 }
-
-// Veering Motions
-
-// goes mostly forward slowly, but slightly to the left
-void veerLeft(byte intensity)
+void turnLeftOnSpot(long speedFactor)
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor + intensity), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - speedFactor), 900, 1500);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor), 1500, 2100);
+	implementMotorSpeed();
+}
+void turnRightOnSpot(long speedFactor)
+{
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1500, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop - speedFactor), 900, 1500);
+	implementMotorSpeed();
+}
+
+// Veering
+// goes mostly forward slowly, but slightly to the left
+void veerLeft(long speedFactor, long intensity)
+{
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1500, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor + intensity), 1500, 2100);
 	implementMotorSpeed();
 }
 // goes mostly forward slowly, but slightly to the right
-void veerRight(byte intensity)
+void veerRight(long speedFactor, long intensity)
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor + intensity), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor + intensity), 1500, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor), 1500, 2100);
+	implementMotorSpeed();
+}
+void veerRightBackward(long speedFactor, long intensity)
+{
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - speedFactor + intensity), 900, 1500);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop - speedFactor), 900, 1500);
 	implementMotorSpeed();
 }
 
-// Open Loop Control Calulations and Status
-
+// Open Loop Control Calulation
 void calcLeftTurn(long fullCircle, int angle) // full circle should be around 2800
 {
 	rightEncoderStopTime = encoder_RightMotor.getRawPosition();
@@ -1112,6 +1269,7 @@ void calcRightTurn(long fullCircle, int angle)
 	leftEncoderStopTime += (fullCircle * angle) / 360;
 }
 
+// Open Loop Control Status
 boolean doneLeftTurn()
 {
 	if (encoder_RightMotor.getRawPosition() > rightEncoderStopTime)
@@ -1128,69 +1286,63 @@ boolean doneRightTurn()
 }
 
 // Line Following
-
 void followLine()
 {
 	// if line on left, turn left
 	if (leftOnly())
 	{
-		if (direction == 0)
-			confidence++;
-		else if (confidence >= 2)
-			confidence--;
+		if (direction == 0 && ((confidence + confidenceIncrement) <= confidenceMax))
+			confidence += confidenceIncrement;
+		else if (((confidence - confidenceIncrement) >= confidenceMin))
+			confidence -= confidenceIncrement;
 
-		turnLeft();
+		turnLeft(confidence);
 		direction = 0;
 	}
 	// if on track, go straight
 	else if (onTrack())
 	{
-		if (direction == 1)
-			confidence++;
-		else if (confidence >= 2)
-			confidence--;
+		if (direction == 1 && ((confidence + confidenceIncrement) <= confidenceMax))
+			confidence += confidenceIncrement;
+		else if (((confidence - confidenceIncrement) >= confidenceMin))
+			confidence -= confidenceIncrement;
 
-		goForward();
+		goForward(confidence);
 		direction = 1;
 	}
 	// if line on right, turn right
 	else if (rightOnly())
 	{
-		if (direction == 2)
-			confidence++;
-		else if (confidence >= 2)
-			confidence--;
+		if (direction == 2 && ((confidence + confidenceIncrement) <= confidenceMax))
+			confidence += confidenceIncrement;
+		else if (((confidence - confidenceIncrement) >= confidenceMin))
+			confidence -= confidenceIncrement;
 
-		turnRight();
+		turnRight(confidence);
 		direction = 2;
 	}
 	// if don't know because both on line, go straight
 	else if(leftOnLine && rightOnLine)
 	{
-		if (direction == 1)
-			confidence++;
-		else if (confidence >= 2)
-			confidence--;
-
-		goForward();
+		goForward(confidence);
 		direction = 1;
 	}
 	// if off line completely, change directions
 	else if (offTrackCompletely())
 	{
 		// sets confidence of 1 (minimum) and direction = 3
-		confidence = 1;
+		confidence = confidenceMin;
 		direction = 3;
 
+		// change direction (once)
 		if (direction = 0)
-			turnRight();
+			turnRight(confidence);
 		else if(direction = 1)
-			turnLeft();
+			turnLeft(confidence);
 	}
 }
 
 // Implements Motor Speed
-
 void implementMotorSpeed()
 {
 	if (bt_Motors_Enabled)
@@ -1205,7 +1357,7 @@ void implementMotorSpeed()
 	}
 }
 
-// CLAW FUNCTIONS
+// ARM FUNCTIONS
 void extendArm()
 {
 	servo_ArmMotor.write(ci_Arm_Servo_Extended);
@@ -1218,7 +1370,21 @@ void liftArm()
 {
 	servo_ArmMotor.write(ci_Arm_Servo_Mid);
 }
+void shakeArm()
+{
+	// shake arm 20 times
+	for (int i = 0; i < 10; i++)
+	{
+		// shaking is done from extended to middle arm positions
+		for (int x = 0; x < 15; x++)
+		{
+			servo_ArmMotor.write(ci_Arm_Servo_Extended - x);
+		}
+	}
+}
 
+
+// CLAW FUNCTIONS
 void apatheticClaw()
 {
 	servo_GripMotor.writeMicroseconds(ci_Grip_Motor_Neutral);
@@ -1233,53 +1399,9 @@ void closeClaw()
 }
 
 // ULTRASONIC SENSOR FUNCTIONS
-
 // returns ultrasonic reading in cm
 int sensorDistance()
 {
 	Ping();
 	return (ul_Echo_Time / 58);
-}
-
-boolean atStop()
-{
-	byte samples = 4;
-	byte count = 0;
-
-	for (byte i = 0; i < samples; i++)
-	{
-		if (analogRead(ci_Left_Line_Tracker) < (ui_Left_Line_Tracker_Dark - ui_Line_Tracker_Tolerance))
-			leftOnLine = true;
-		else
-			leftOnLine = false;
-
-		if (analogRead(ci_Middle_Line_Tracker) < (ui_Middle_Line_Tracker_Dark - ui_Line_Tracker_Tolerance))
-			middleOnLine = true;
-		else
-			middleOnLine = false;
-
-		if (analogRead(ci_Right_Line_Tracker) < (ui_Right_Line_Tracker_Dark - ui_Line_Tracker_Tolerance))
-			rightOnLine = true;
-		else
-			rightOnLine = false;
-
-		if (leftOnLine && middleOnLine && rightOnLine)
-			count++;
-	}
-
-	if (count >= 2)
-		return true;
-	else
-		return false;
-}
-
-void shakeArm()
-{
-	for (int i = 0; i < 10; i++)
-	{
-		extendArm();
-		delay(10);
-		liftArm();
-		delay(10);
-	}
 }
