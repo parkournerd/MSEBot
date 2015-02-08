@@ -799,12 +799,16 @@ void loop()
 				/*
 				Position: after stop 1
 				What Doing: following line
-				When to Increment Stage: see 111 (once?)
+				When to Increment Stage: see 111 twice (stops after first time)
 				*/
 				if (atStop())
 				{
+					// stops
 					halt();
-					stage++;
+
+					// checks if at stop 1
+					if (checkedAtStop(1))
+						stage++;
 				}
 				else
 					followLine();
@@ -835,9 +839,8 @@ void loop()
 				When to Increment Stage: done opening claw
 				*/
 				goForward(100);
-				delay(200);
 				extendArm();
-				delay(200);
+				delay(300);
 				openClaw();
 				delay(1200);
 				halt();
@@ -1242,7 +1245,7 @@ void veerRight(long speedFactor, long intensity)
 }
 void veerRightBackward(long speedFactor, long intensity)
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - speedFactor + intensity), 900, 1500);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - speedFactor - intensity), 900, 1500);
 	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop - speedFactor), 900, 1500);
 	implementMotorSpeed();
 }
@@ -1369,6 +1372,7 @@ void shakeArm()
 		for (int x = 0; x < 15; x++)
 		{
 			servo_ArmMotor.write(ci_Arm_Servo_Extended - x);
+			delay(5);
 		}
 	}
 }
