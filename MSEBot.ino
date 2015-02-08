@@ -86,8 +86,8 @@ const int ci_Right_Motor_Offset_Address_H = 15;
 
 const int ci_Left_Motor_Stop = 1500;        // 200 for brake mode; 1500 for stop
 const int ci_Right_Motor_Stop = 1500;
-const int ci_Grip_Motor_Open = 1750;
-const int ci_Grip_Motor_Closed = 700;
+const int ci_Grip_Motor_Open = 1900;
+const int ci_Grip_Motor_Closed = 1250;
 const int ci_Grip_Motor_Neutral = 1500;
 const int ci_Arm_Servo_Retracted = 70;      //  "
 const int ci_Arm_Servo_Extended = 110;      //  "
@@ -127,34 +127,31 @@ unsigned int ui_Right_Line_Tracker_Dark;
 unsigned int ui_Right_Line_Tracker_Light;
 unsigned int ui_Line_Tracker_Tolerance;
 
+// debugging variables
+byte serialBuffer;
+int debugValue = 1500;
+
 // boolean for quicker access of binary line tracker readings
 boolean leftOnLine;
 boolean middleOnLine;
 boolean rightOnLine;
 
-// speed factor
-int speedFactor = 130;
-
-// debugging variables
-byte serialBuffer;
-int debugValue = 100;
-
-// variables for open loop functions
-long leftEncoderStopTime = 0;
-long rightEncoderStopTime = 0;
-
-// stage variables
-byte stage = 6;
+// line following
+byte confidence = 0;
+byte direction = 0;
 
 // variable for open loop functions
 boolean loopStarted = false;
+long leftEncoderStopTime = 0;
+long rightEncoderStopTime = 0;
+const int leftEncoderCalibration = 2800;
+const int rightEncoderCalibration = 2800;
 
-// light sensor variable for previous
-int reading = 0;
-int previousReading = 0;
-boolean startedDecreasing;
+// stage variables
+int stage = 6;
 
-int count = 0;
+// speed factor
+int speedFactor = 130;// 130
 
 unsigned int  ui_Robot_State_Index = 0;
 //0123456789ABCDEF
@@ -292,7 +289,7 @@ void loop()
 		servo_LeftMotor.writeMicroseconds(ci_Left_Motor_Stop);
 		servo_RightMotor.writeMicroseconds(ci_Right_Motor_Stop);
 		retractArm();
-		apatheticClaw();
+		openClaw();
 
 		// code showing testing of claw opening
 		if (Serial.available())
@@ -318,7 +315,7 @@ void loop()
 
 		ui_Mode_Indicator_Index = 0;
 
-		Serial.println(analogRead(ci_Light_Sensor));
+		// Serial.println(analogRead(ci_Light_Sensor));
 
 		break;
 	}
@@ -327,9 +324,6 @@ void loop()
 	{
 		if (bt_3_S_Time_Up)
 		{
-			readLineTrackers();
-
-
 #ifdef DEBUG_ENCODERS           
 			ul_Left_Motor_Position = encoder_LeftMotor.getPosition();
 			ul_Right_Motor_Position = encoder_RightMotor.getPosition();
@@ -347,7 +341,8 @@ void loop()
 			* 			Adjust motor speed according to information from line tracking sensors and
 			* 			possibly encoder counts.
 			/*************************************************************************************/
-			Serial.println(stage);
+
+			readLineTrackers();
 
 			switch (stage)
 			{
@@ -357,7 +352,7 @@ void loop()
 				What Doing: following line
 				When to Increment Stage: see 111
 				*/
-				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+				if (atStop())
 				{
 					stage++;
 				}
@@ -381,7 +376,7 @@ void loop()
 				What Doing: fl
 				When to Increment Stage: see 111
 				*/
-				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+				if (atStop())
 					stage++;
 				else
 					followLine();
@@ -403,7 +398,7 @@ void loop()
 				What Doing: fl
 				When to Increment Stage: see 111
 				*/
-				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+				if (atStop())
 					stage++;
 				else
 					followLine();
@@ -425,7 +420,7 @@ void loop()
 				What Doing: fl
 				When to Increment Stage: see 111
 				*/
-				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+				if (atStop())
 				{
 					halt();
 					stage++;
@@ -443,21 +438,6 @@ void loop()
 				{
 					loopStarted = true;
 					halt();
-					calcRightTurn(2800, 20);
-					goForward();
-				}
-				else if (doneRightTurn())
-				{
-					halt();
-					loopStarted = false;
-					stage++;
-				}
-				break;
-			case 8:
-				if (!loopStarted)
-				{
-					loopStarted = true;
-					halt();
 					calcRightTurn(2800, 120);
 					turnRight();
 				}
@@ -468,12 +448,18 @@ void loop()
 					stage++;
 				}
 				break;
+			case 8:
+				extendArm();
+				openClaw();
+				stage++;
+				break;
 			case 9:
 				if (!loopStarted)
 				{
 					loopStarted = true;
 					halt();
 					calcRightTurn(2800, 120);
+
 					goForward();
 				}
 				else if (doneRightTurn())
@@ -484,22 +470,18 @@ void loop()
 				}
 				break;
 			case 10:
-				extendArm();
-				delay(200);
-				openClaw();
-				delay(200);
-				stage++;
-				break;
-			case 11:
 				if (analogRead(ci_Light_Sensor) < 100)
 					stage++;
 				else
-					turnRightSlowly();
+					turnRightOnSpot();
 				break;
+			case 11:
+				stage++;
 			case 12:
 				int x;
 				x = sensorDistance();
 				Ping();
+
 				goForward();
 
 				if (x < 5)
@@ -511,12 +493,12 @@ void loop()
 				break;
 			case 13:
 				closeClaw();
-				delay(500);
+				delay(1500);
 				liftArm();
 				stage++;
 				break;
 			case 14:
-				if (middleOnLine && rightOnLine)
+				if ((leftOnLine && middleOnLine) || (middleOnLine && rightOnLine))
 					stage++;
 				else
 					goBackward();
@@ -526,8 +508,8 @@ void loop()
 				{
 					loopStarted = true;
 					halt();
-					calcRightTurn(2800, 20);
-					turnRightSlowly();
+					calcRightTurn(2800, 15);
+					goForward();
 				}
 				else if (doneRightTurn())
 				{
@@ -539,64 +521,47 @@ void loop()
 			case 16:
 				if (leftOnLine)
 					stage++;
-				else 
-					turnRightSlowly();
+				else
+					veerRight(200);
 				break;
 			case 17:
-				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+				if (leftOnLine && !middleOnLine && rightOnLine)
 					stage++;
 				else
 					followLine();
 				break;
 			case 18:
-				if (!(leftOnLine&&middleOnLine&&rightOnLine))
-					stage++;
-				else
+				if (!loopStarted)
+				{
+					loopStarted = true;
+					halt();
+					calcRightTurn(2800, 10);
 					goForward();
+				}
+				else if (doneRightTurn())
+				{
+					halt();
+					loopStarted = false;
+					stage++;
+				}
 				break;
 			case 19:
-				/*
-				Position: before branch 3
-				What Doing: fl
-				When to Increment Stage: see 111
-				*/
-				if (leftOnLine && rightOnLine)
+				if (leftOnLine)
+				{
 					stage++;
+				}
 				else
-					followLine();
+				{
+					veerRight(80);
+				}
 				break;
 			case 20:
-				/*
-				Position: branch 3
-				What Doing: straight, slightly right
-				When to Increment Stage: 1x0 or 0x1 or 0x0
-				*/
-				if (((leftOnLine) && (!rightOnLine)) || ((!leftOnLine) && (rightOnLine)) || ((!leftOnLine) && (!rightOnLine)))
-				{
-					stage++;
-				}
-				else
-				{
-					veerRight(100);
-				}
-				break;
-			case 21:
-				/*
-				Position: before branch 3
-				What Doing: fl
-				When to Increment Stage: see 111
-				*/
-				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+				if (atStop())
 					stage++;
 				else
 					followLine();
 				break;
-			case 22:
-				/*
-				Position: stop 3
-				What Doing: straight
-				When to Increment Stage: not 111
-				*/
+			case 21:
 				if (!(leftOnLine&&middleOnLine&&rightOnLine))
 				{
 					stage++;
@@ -604,51 +569,44 @@ void loop()
 				else
 					goForward();
 				break;
-			case 23:
-				/*
-				Position: after branch 2
-				What Doing: fl
-				When to Increment Stage: reads 111 or 101
-				*/
-				if ((leftOnLine) && (rightOnLine))
+			case 22:
+				if (leftOnLine && !middleOnLine && rightOnLine)
 					stage++;
 				else
 					followLine();
 				break;
+			case 23:
+				if (!loopStarted)
+				{
+					loopStarted = true;
+					halt();
+					calcRightTurn(2800, 10);
+					goForward();
+				}
+				else if (doneRightTurn())
+				{
+					halt();
+					loopStarted = false;
+					stage++;
+				}
+				break;
 			case 24:
-				/*
-				Position: branch 2
-				What Doing: straight, slightly left
-				When to Increment Stage: 1x0 or 0x1 or 0x0
-				*/
-				if ((((leftOnLine) && (!rightOnLine)) || ((!leftOnLine) && (rightOnLine)) || ((!leftOnLine) && (!rightOnLine))) || (count > 1))
+				if (rightOnLine)
 				{
 					stage++;
-					count = 0;
 				}
 				else
 				{
-					veerLeft(100);
-					count++;
+					veerLeft(160);
 				}
 				break;
 			case 25:
-				/*
-				Position: before branch 2
-				What Doing: fl
-				When to Increment Stage: see 111
-				*/
-				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
+				if (atStop())
 					stage++;
 				else
 					followLine();
 				break;
 			case 26:
-				/*
-				Position: stop 2
-				What Doing: staight
-				When to Increment Stage: not 111
-				*/
 				if (!(leftOnLine&&middleOnLine&&rightOnLine))
 				{
 					stage++;
@@ -657,51 +615,49 @@ void loop()
 					goForward();
 				break;
 			case 27:
-				/*
-				Position: after branch 1
-				What Doing: fl
-				When to Increment Stage: reads 111 or 101
-				*/
-				if ((leftOnLine) && (rightOnLine))
+				if (leftOnLine && !middleOnLine && rightOnLine)
 					stage++;
 				else
 					followLine();
 				break;
 			case 28:
-				/*
-				Position: branch 1
-				What Doing: straight, slightly left
-				When to Increment Stage: 1x0 or 0x1 or 0x0
-				*/
-				if ((((leftOnLine) && (!rightOnLine)) || ((!leftOnLine) && (rightOnLine)) || ((!leftOnLine) && (!rightOnLine))) || (count > 1))
-				{
-					stage++;
-					count = 0;
-				}
-				else
-				{
-					veerLeft(100);
-					count++;
-				}
-				break;
-			case 29:
-				/*
-				Position: before branch 1
-				What Doing: fl
-				When to Increment Stage: see 111
-				*/
-				if ((leftOnLine) && (middleOnLine) && (rightOnLine))
-					stage++;
-				else
-					followLine();
-				break;
-			case 30:
 				if (!loopStarted)
 				{
 					loopStarted = true;
 					halt();
-					calcLeftTurn(2800, 60);
-					turnLeft();
+					calcRightTurn(2800, 10);
+					goForward();
+				}
+				else if (doneRightTurn())
+				{
+					halt();
+					loopStarted = false;
+					stage++;
+				}
+				break;
+			case 29:
+				if (rightOnLine)
+				{
+					stage++;
+				}
+				else
+				{
+					veerLeft(160);
+				}
+				break;
+			case 30:
+				if (atStop())
+					stage++;
+				else
+					followLine();
+				break;
+			case 31:
+				if (!loopStarted)
+				{
+					loopStarted = true;
+					halt();
+					calcLeftTurn(2800, 90);
+					turnLeftOnSpot();
 				}
 				else if (doneLeftTurn())
 				{
@@ -710,18 +666,24 @@ void loop()
 					stage++;
 				}
 				break;
-			case 31:
+			case 32:
+				extendArm();
+				delay(1000);
 				openClaw();
-				delay(500);
+				delay(1000);
+				shakeArm();
 				retractArm();
+				delay(1000);
+				apatheticClaw();
 				stage++;
 				break;
 			default:
+				halt();
 				// dance
 				/*halt();
 				stage = 0;
 				ui_Robot_State_Index = 0;*/
-				if (!loopStarted)
+				/*if (!loopStarted)
 				{
 					loopStarted = true;
 					halt();
@@ -736,10 +698,10 @@ void loop()
 					delay(200);
 					retractArm();
 					delay(200);
-				}
+				}*/
 				break;
 			}
-		
+
 #ifdef DEBUG_MOTORS  
 			Serial.print("Motors: Default: ");
 			Serial.print(ui_Motors_Speed);
@@ -901,9 +863,9 @@ void loop()
 			Serial.println(encoder_RightMotor.getRawPosition());
 #endif        
 			ui_Mode_Indicator_Index = 4;
-		}
+			}
 		break;
-	}
+		}
 	}
 
 	if ((millis() - ul_Display_Time) > ci_Display_Time)
@@ -919,7 +881,7 @@ void loop()
 		digitalWrite(13, bt_Heartbeat);
 		Indicator();
 	}
-}
+	}
 
 // set mode indicator LED state
 void Indicator()
@@ -991,7 +953,6 @@ void Ping()
 	//use command pulseIn to listen to Ultrasonic_Data pin to record the
 	//time that it takes from when the Pin goes HIGH until it goes LOW 
 	ul_Echo_Time = pulseIn(ci_Ultrasonic_Data, HIGH, 10000);
-
 	// Print Sensor Readings
 #ifdef DEBUG_ULTRASONIC
 	Serial.print("Time (microseconds): ");
@@ -1005,24 +966,95 @@ void Ping()
 
 // NAVIGATIONAL MOTOR FUNCTIONS
 
-// Basic Motions
+// checking for stops and branches
+boolean atStop()
+{
+	if (leftOnLine && middleOnLine && rightOnLine)
+		return true;
+	else
+		return false;
+}
+boolean atBranch()
+{
+	if (leftOnLine && !middleOnLine && rightOnLine)
+		return true;
+	else
+		return false;
+}
+boolean checkedAtStop(byte times)
+{
+	for (int i = 0; i < times; i++)
+	{
+		readLineTrackers();
+		if (!atStop())
+			return false;
+	}
 
+	return true;
+}
+boolean checkedAtBranched(byte times)
+{
+	for (int i = 0; i < times; i++)
+	{
+		readLineTrackers();
+		if (!atBranch())
+			return false;
+	}
+
+	return true;
+}
+boolean onTrack()
+{
+	if (!leftOnLine && middleOnLine && !rightOnLine)
+		return true;
+	else
+		return false;
+}
+boolean offTrackCompletely()
+{
+	if (!leftOnLine && !middleOnLine && !rightOnLine)
+		return true;
+	else
+		return false;
+}
+boolean leftOnly()
+{
+	if (leftOnLine && !rightOnLine)
+		return true;
+	else
+		return false;
+}
+boolean rightOnly()
+{
+	if (!leftOnLine && rightOnLine)
+		return true;
+	else
+		return false;
+}
+
+// Basic Motions
 void turnLeft()
 {
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor * 3.5), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor * 3), 1600, 2100);
 	ui_Left_Motor_Speed = ci_Right_Motor_Stop;
 	implementMotorSpeed();
 }
 void turnRight()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor * 3.5), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor * 3), 1600, 2100);
 	ui_Right_Motor_Speed = ci_Left_Motor_Stop;
 	implementMotorSpeed();
 }
-void turnRightSlowly()
+void turnLeftOnSpot()
+{
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - speedFactor), 900, 1500);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor), 1600, 2100);
+	implementMotorSpeed();
+}
+void turnRightOnSpot()
 {
 	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1600, 2100);
-	ui_Right_Motor_Speed = ci_Left_Motor_Stop;
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop - speedFactor), 900, 1500);
 	implementMotorSpeed();
 }
 void goForward()
@@ -1033,14 +1065,14 @@ void goForward()
 }
 void goForwardSlowly()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor * 2), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor * 2), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor*1.2), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor*1.2), 1600, 2100);
 	implementMotorSpeed();
 }
 void goBackward()
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - speedFactor*2), 900, 1400);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop - speedFactor*3.1), 900, 1400);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop - speedFactor*1.8), 900, 1400);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop - speedFactor*1.8), 900, 1400);
 	implementMotorSpeed();
 }
 void halt()
@@ -1055,15 +1087,15 @@ void halt()
 // goes mostly forward slowly, but slightly to the left
 void veerLeft(byte intensity)
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor*1.8), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor*3 + intensity), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor + intensity), 1600, 2100);
 	implementMotorSpeed();
 }
 // goes mostly forward slowly, but slightly to the right
 void veerRight(byte intensity)
 {
-	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor*1.8 + intensity), 1600, 2100);
-	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor*1.8), 1600, 2100);
+	ui_Left_Motor_Speed = constrain((ci_Left_Motor_Stop + speedFactor + intensity), 1600, 2100);
+	ui_Right_Motor_Speed = constrain((ci_Right_Motor_Stop + speedFactor), 1600, 2100);
 	implementMotorSpeed();
 }
 
@@ -1100,19 +1132,60 @@ boolean doneRightTurn()
 void followLine()
 {
 	// if line on left, turn left
-	if ((leftOnLine) && (!rightOnLine))
+	if (leftOnly())
 	{
+		if (direction == 0)
+			confidence++;
+		else if (confidence >= 2)
+			confidence--;
+
 		turnLeft();
-	}
-	// if line on right, turn right
-	else if ((!leftOnLine) && (rightOnLine))
-	{
-		turnRight();
+		direction = 0;
 	}
 	// if on track, go straight
-	else // on track (not enough information to do anything else)
+	else if (onTrack())
 	{
+		if (direction == 1)
+			confidence++;
+		else if (confidence >= 2)
+			confidence--;
+
 		goForward();
+		direction = 1;
+	}
+	// if line on right, turn right
+	else if (rightOnly())
+	{
+		if (direction == 2)
+			confidence++;
+		else if (confidence >= 2)
+			confidence--;
+
+		turnRight();
+		direction = 2;
+	}
+	// if don't know because both on line, go straight
+	else if(leftOnLine && rightOnLine)
+	{
+		if (direction == 1)
+			confidence++;
+		else if (confidence >= 2)
+			confidence--;
+
+		goForward();
+		direction = 1;
+	}
+	// if off line completely, change directions
+	else if (offTrackCompletely())
+	{
+		// sets confidence of 1 (minimum) and direction = 3
+		confidence = 1;
+		direction = 3;
+
+		if (direction = 0)
+			turnRight();
+		else if(direction = 1)
+			turnLeft();
 	}
 }
 
@@ -1166,4 +1239,47 @@ int sensorDistance()
 {
 	Ping();
 	return (ul_Echo_Time / 58);
+}
+
+boolean atStop()
+{
+	byte samples = 4;
+	byte count = 0;
+
+	for (byte i = 0; i < samples; i++)
+	{
+		if (analogRead(ci_Left_Line_Tracker) < (ui_Left_Line_Tracker_Dark - ui_Line_Tracker_Tolerance))
+			leftOnLine = true;
+		else
+			leftOnLine = false;
+
+		if (analogRead(ci_Middle_Line_Tracker) < (ui_Middle_Line_Tracker_Dark - ui_Line_Tracker_Tolerance))
+			middleOnLine = true;
+		else
+			middleOnLine = false;
+
+		if (analogRead(ci_Right_Line_Tracker) < (ui_Right_Line_Tracker_Dark - ui_Line_Tracker_Tolerance))
+			rightOnLine = true;
+		else
+			rightOnLine = false;
+
+		if (leftOnLine && middleOnLine && rightOnLine)
+			count++;
+	}
+
+	if (count >= 2)
+		return true;
+	else
+		return false;
+}
+
+void shakeArm()
+{
+	for (int i = 0; i < 10; i++)
+	{
+		extendArm();
+		delay(10);
+		liftArm();
+		delay(10);
+	}
 }
