@@ -369,7 +369,10 @@ void loop()
 				if (atStop())
 				{
 					if (checkedAtStop(1))
+					{
+						confidence = confidenceDefault;
 						stage++;
+					}
 				}
 				else
 					followLine();
@@ -397,7 +400,10 @@ void loop()
 				if (atStop())
 				{
 					if (checkedAtStop(1))
+					{
+						confidence = confidenceDefault;
 						stage++;
+					}
 				}
 				else
 					followLine();
@@ -425,7 +431,10 @@ void loop()
 				if (atStop())
 				{
 					if (checkedAtStop(1))
+					{
+						confidence = confidenceDefault;
 						stage++;
+					}
 				}
 				else
 					followLine();
@@ -455,6 +464,7 @@ void loop()
 					if (checkedAtStop(1))
 					{
 						halt();
+						confidence = confidenceDefault;
 						stage++;
 					}
 				}
@@ -613,6 +623,7 @@ void loop()
 				if (atBranch())
 				{
 					halt();
+					confidence = confidenceDefault;
 					stage++;
 				}
 				else
@@ -660,7 +671,10 @@ void loop()
 				if (atStop())
 				{
 					if (checkedAtStop(1))
+					{
+						confidence = confidenceDefault;
 						stage++;
+					}
 				}
 				else
 					followLine();
@@ -688,6 +702,7 @@ void loop()
 				if (atBranch())
 				{
 					halt();
+					confidence = confidenceDefault;
 					stage++;
 				}
 				else
@@ -735,7 +750,10 @@ void loop()
 				if (atStop())
 				{
 					if (checkedAtStop(1))
+					{
+						confidence = confidenceDefault;
 						stage++;
+					}
 				}
 				else
 					followLine();
@@ -763,6 +781,7 @@ void loop()
 				if (atBranch())
 				{
 					halt();
+					confidence = confidenceDefault;
 					stage++;
 				}
 				else
@@ -814,7 +833,10 @@ void loop()
 
 					// checks if at stop 1
 					if (checkedAtStop(1))
+					{
+						confidence = confidenceDefault;
 						stage++;
+					}
 				}
 				else
 					followLine();
