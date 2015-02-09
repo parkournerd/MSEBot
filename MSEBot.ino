@@ -86,8 +86,8 @@ const int ci_Right_Motor_Offset_Address_H = 15;
 
 const int ci_Left_Motor_Stop = 1500;        // 200 for brake mode; 1500 for stop
 const int ci_Right_Motor_Stop = 1500;
-const int ci_Grip_Motor_Open = 1900;
-const int ci_Grip_Motor_Closed = 1250;
+const int ci_Grip_Motor_Open = 1750;
+const int ci_Grip_Motor_Closed = 900;
 const int ci_Grip_Motor_Neutral = 1500;
 const int ci_Arm_Servo_Retracted = 70;      //  "
 const int ci_Arm_Servo_Extended = 110;      //  "
@@ -307,7 +307,8 @@ void loop()
 		if (loopStarted)
 		{
 			openClaw();
-			delay(500);
+			loopStarted = false;
+			delay(1000);
 		}
 		else
 		{
@@ -509,7 +510,7 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					calcRightTurn(2800, 120);
+					calcRightTurn(2800, 140);
 					goForward(400); // double speed as before
 				}
 				else if (doneRightTurn())
@@ -525,13 +526,13 @@ void loop()
 				What Doing: turning right until aligned with the beacon
 				When to Increment Stage: aligned with the beacon
 				*/
-				if (analogRead(ci_Light_Sensor) < 100)
+				if (analogRead(ci_Light_Sensor) < 80)
 				{
 					halt();
 					stage++;
 				}
 				else
-					turnRightOnSpot(240); // double speed as before
+					turnRightOnSpot(150); // double speed as before
 				break;
 			case 11:
 				/*
@@ -544,7 +545,7 @@ void loop()
 				x = sensorDistance();
 				Ping();
 
-				if (x < 5)
+				if (x < 4)
 				{
 					halt();
 					stage++;
@@ -561,7 +562,7 @@ void loop()
 				When to Increment Stage: arm lift started
 				*/
 				closeClaw();
-				delay(1200); // minimum value needs to be found
+				delay(1500); // minimum value needs to be found
 				liftArm();
 				stage++;
 				break;
@@ -583,7 +584,7 @@ void loop()
 					}
 				}
 				else
-					veerRightBackward(240,0); // a little bit faster than before
+					veerRightBackward(240,60); // a little bit faster than before
 				break;
 			case 14:
 				/*
@@ -594,8 +595,8 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					calcRightTurn(2800, 15);
-					goForward(200); // same speed
+					calcRightTurn(2800, 40);
+					goForward(300); // same speed
 				}
 				else if (doneRightTurn())
 				{
@@ -612,7 +613,7 @@ void loop()
 				if (leftOnLine)
 					stage++;
 				else
-					veerRight(100, 200); // slower than before to increasing angle and ensure line recapturing
+					turnRightOnSpot(150); // slower than before to increasing angle and ensure line recapturing
 				break;
 			case 16:
 				/*
@@ -687,7 +688,7 @@ void loop()
 				*/
 				if (!atStop())
 				{
-					if (!checkedAtStop(1))
+					if (!checkedAtStop(2))
 						stage++;
 				}
 				else
@@ -718,7 +719,7 @@ void loop()
 				{
 					loopStarted = true;
 					calcRightTurn(2800, 15); // further
-					goForward(300); // 1.5x speed
+					veerLeft(300,50); // 1.5x speed
 				}
 				else if (doneRightTurn())
 				{
@@ -749,7 +750,7 @@ void loop()
 				*/
 				if (atStop())
 				{
-					if (checkedAtStop(1))
+					if (checkedAtStop(2))
 					{
 						confidence = confidenceDefault;
 						stage++;
@@ -796,8 +797,8 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					calcRightTurn(2800, 15); // further
-					goForward(300); // 1.5x speed
+					calcRightTurn(2800, 25); // further
+					veerLeft(300, 50); // 1.5x speed
 				}
 				else if (doneRightTurn())
 				{
@@ -817,7 +818,7 @@ void loop()
 				}
 				else
 				{
-					veerLeft(200, 80);
+					veerLeft(200, 120);
 				}
 				break;
 			case 29:
@@ -832,7 +833,7 @@ void loop()
 					halt();
 
 					// checks if at stop 1
-					if (checkedAtStop(1))
+					if (checkedAtStop(2))
 					{
 						confidence = confidenceDefault;
 						stage++;
@@ -850,7 +851,7 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					calcLeftTurn(2800, 45); // halved because on stop, tweak
+					calcLeftTurn(2800, 20); // halved because on stop, tweak
 					turnLeftOnSpot(240);
 				}
 				else if (doneLeftTurn())
@@ -882,6 +883,7 @@ void loop()
 				*/
 				shakeArm();
 				stage++;
+				break;
 			default:
 				loopStarted = true; // causes mode 0 to reset arm and claw
 				ui_Robot_State_Index = 0; // enter mode 0
@@ -1314,8 +1316,8 @@ void followLine()
 	{
 		if (direction == 0 && ((confidence + confidenceIncrement) <= confidenceMax))
 			confidence += confidenceIncrement;
-		else if (((confidence - confidenceIncrement) >= confidenceMin))
-			confidence -= confidenceIncrement;
+		else if (((confidence - confidenceIncrement*2) >= confidenceMin))
+			confidence -= confidenceIncrement*2;
 
 		turnLeft(confidence);
 		direction = 0;
@@ -1325,8 +1327,8 @@ void followLine()
 	{
 		if (direction == 1 && ((confidence + confidenceIncrement) <= confidenceMax))
 			confidence += confidenceIncrement;
-		else if (((confidence - confidenceIncrement) >= confidenceMin))
-			confidence -= confidenceIncrement;
+		else if (((confidence - confidenceIncrement*2) >= confidenceMin))
+			confidence -= confidenceIncrement*2;
 
 		goForward(confidence);
 		direction = 1;
@@ -1336,8 +1338,8 @@ void followLine()
 	{
 		if (direction == 2 && ((confidence + confidenceIncrement) <= confidenceMax))
 			confidence += confidenceIncrement;
-		else if (((confidence - confidenceIncrement) >= confidenceMin))
-			confidence -= confidenceIncrement;
+		else if (((confidence - confidenceIncrement*2) >= confidenceMin))
+			confidence -= confidenceIncrement*2;
 
 		turnRight(confidence);
 		direction = 2;
@@ -1349,7 +1351,7 @@ void followLine()
 		direction = 1;
 	}
 	// if off line completely, change directions
-	else if (offTrackCompletely())
+	/*else if (offTrackCompletely())
 	{
 		// sets confidence of 1 (minimum) and direction = 3
 		confidence = confidenceMin;
@@ -1360,7 +1362,7 @@ void followLine()
 			turnRight(confidence);
 		else if(direction = 1)
 			turnLeft(confidence);
-	}
+	}*/
 }
 
 // Implements Motor Speed
