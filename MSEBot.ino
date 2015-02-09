@@ -138,9 +138,10 @@ boolean rightOnLine;
 
 // line following
 long confidence = 0;
-long confidenceIncrement = 50;
-long confidenceMin = 100;
-long confidenceMax = 600;
+const long confidenceDefault = 200;
+const long confidenceIncrement = 50;
+const long confidenceMin = 100;
+const long confidenceMax = 600;
 
 byte direction = 0;
 
@@ -284,11 +285,23 @@ void loop()
 
 	case 0:    //Robot stopped
 	{
+		// reads and pings
 		readLineTrackers();
 		Ping();
+
+		// stops motors and retracts arm
 		servo_LeftMotor.writeMicroseconds(ci_Left_Motor_Stop);
 		servo_RightMotor.writeMicroseconds(ci_Right_Motor_Stop);
 		retractArm();
+
+		// zeroes encoders and mode
+		encoder_LeftMotor.zero();
+		encoder_RightMotor.zero();
+		encoder_GripMotor.zero();
+		ui_Mode_Indicator_Index = 0;
+
+		// resets confidence value to default
+		confidence = confidenceDefault;
 
 		// default value is true, this causes claw to opened open and then motor off to conserve power.
 		if (loopStarted)
@@ -318,13 +331,6 @@ void loop()
 			Serial.println(debugValue);
 			servo_GripMotor.writeMicroseconds(debugValue);
 		}
-
-		encoder_LeftMotor.zero();
-		encoder_RightMotor.zero();
-		encoder_GripMotor.zero();
-
-		ui_Mode_Indicator_Index = 0;
-
 		break;
 	}
 
