@@ -595,7 +595,7 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					calcRightTurn(2800, 40);
+					calcRightTurn(2800, 60);
 					goForward(300); // same speed
 				}
 				else if (doneRightTurn())
@@ -610,8 +610,11 @@ void loop()
 				What Doing: re-capturing line
 				When to Increment Stage: line recaptured (left line tracking is on the line)
 				*/
-				if (leftOnLine)
+				if (rightOnLine)
+				{
+					halt();
 					stage++;
+				}
 				else
 					turnRightOnSpot(150); // slower than before to increasing angle and ensure line recapturing
 				break;
@@ -867,11 +870,12 @@ void loop()
 				What Doing: drive forward slowly, extending arm, amd opening claw
 				When to Increment Stage: done opening claw
 				*/
-				goForward(100);
+				goForward(120);
+				delay(300);
 				extendArm();
 				delay(300);
 				openClaw();
-				delay(1200);
+				delay(2000);
 				halt();
 				stage++;
 				break;
@@ -887,6 +891,7 @@ void loop()
 			default:
 				loopStarted = true; // causes mode 0 to reset arm and claw
 				ui_Robot_State_Index = 0; // enter mode 0
+				break;
 			}
 
 #ifdef DEBUG_MOTORS  
