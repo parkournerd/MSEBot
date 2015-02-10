@@ -1323,6 +1323,8 @@ void followLine()
 			confidence += confidenceIncrement;
 		else if (((confidence - confidenceIncrement*2) >= confidenceMin))
 			confidence -= confidenceIncrement*2;
+		else if (((confidence - confidenceIncrement) >= confidenceMin))
+			confidence -= confidenceIncrement;
 
 		turnLeft(confidence);
 		direction = 0;
@@ -1334,6 +1336,8 @@ void followLine()
 			confidence += confidenceIncrement;
 		else if (((confidence - confidenceIncrement*2) >= confidenceMin))
 			confidence -= confidenceIncrement*2;
+		else if (((confidence - confidenceIncrement) >= confidenceMin))
+			confidence -= confidenceIncrement;
 
 		goForward(confidence);
 		direction = 1;
@@ -1345,6 +1349,8 @@ void followLine()
 			confidence += confidenceIncrement;
 		else if (((confidence - confidenceIncrement*2) >= confidenceMin))
 			confidence -= confidenceIncrement*2;
+		else if (((confidence - confidenceIncrement) >= confidenceMin))
+			confidence -= confidenceIncrement;
 
 		turnRight(confidence);
 		direction = 2;
