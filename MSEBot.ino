@@ -658,7 +658,10 @@ void loop()
 				else
 				{
 					if (offTrackCompletely())
-						turnLeftOnSpot(200);
+					{
+						confidence = confidenceMin;
+						turnLeftOnSpot(confidenceDefault);
+					}
 					else
 						followLine();
 				}
@@ -687,7 +690,7 @@ void loop()
 				}
 				else
 				{
-					turnRightOnSpot(200);
+					turnRightOnSpot(confidenceDefault);
 				}
 				break;
 			case 18:
@@ -722,7 +725,10 @@ void loop()
 				else
 				{
 					if (offTrackCompletely())
-						turnRightOnSpot(200);
+					{
+						confidence = confidenceMin;
+						turnRightOnSpot(confidenceDefault);
+					}
 					else
 						followLine();
 				}
@@ -789,7 +795,7 @@ void loop()
 				}
 				else
 				{
-					turnLeftOnSpot(200);
+					turnLeftOnSpot(confidenceDefault);
 				}
 				break;
 			case 23:
@@ -824,7 +830,10 @@ void loop()
 				else
 				{
 					if (offTrackCompletely())
-						turnLeftOnSpot(200);
+					{
+						confidence = confidenceMin;
+						turnLeftOnSpot(confidenceDefault);
+					}
 					else
 						followLine();
 				}
@@ -891,7 +900,7 @@ void loop()
 				}
 				else
 				{
-					turnLeftOnSpot(200);
+					turnLeftOnSpot(confidenceDefault);
 				}
 				break;
 			case 28:
@@ -930,7 +939,10 @@ void loop()
 				else
 				{
 					if (offTrackCompletely())
-						turnLeftOnSpot(200);
+					{
+						confidence = confidenceMin;
+						turnLeftOnSpot(confidenceDefault);
+					}
 					else
 						followLine();
 				}
