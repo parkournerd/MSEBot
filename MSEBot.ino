@@ -933,7 +933,7 @@ void loop()
 				What Doing: drive forward slowly, extending arm, amd opening claw
 				When to Increment Stage: done opening claw and shaking arm
 				*/
-				goForward(80);
+				goForward(70);
 				apatheticClaw();
 				retractArm();
 				delay(1000);
