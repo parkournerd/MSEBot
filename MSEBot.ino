@@ -669,7 +669,7 @@ void loop()
 				What Doing: going forward set distance
 				When to Increment Stage: done going forward
 				*/
-				if (!loopStarted)
+				/*if (!loopStarted)
 				{
 					loopStarted = true;
 					calcRightTurn(2800, 35); // further
@@ -679,6 +679,15 @@ void loop()
 				{
 					loopStarted = false;
 					stage++;
+				}*/
+				if (onTrack())
+				{
+					confidence = confidenceDefault;
+					stage++;
+				}
+				else
+				{
+					turnRightOnSpot(200);
 				}
 				break;
 			case 18:
@@ -762,7 +771,7 @@ void loop()
 				What Doing: going forward set distance
 				When to Increment Stage: done going forward
 				*/
-				if (!loopStarted)
+				/*if (!loopStarted)
 				{
 					loopStarted = true;
 					calcRightTurn(2800, 30); // further
@@ -772,6 +781,15 @@ void loop()
 				{
 					loopStarted = false;
 					stage++;
+				}*/
+				if (onTrack())
+				{
+					confidence = confidenceDefault;
+					stage++;
+				}
+				else
+				{
+					turnLeftOnSpot(200);
 				}
 				break;
 			case 23:
@@ -855,7 +873,7 @@ void loop()
 				What Doing: going forward set distance
 				When to Increment Stage: done going forward
 				*/
-				if (!loopStarted)
+				/*if (!loopStarted)
 				{
 					loopStarted = true;
 					calcRightTurn(2800, 40); // further
@@ -865,6 +883,15 @@ void loop()
 				{
 					loopStarted = false;
 					stage++;
+				}*/
+				if (onTrack())
+				{
+					confidence = confidenceDefault;
+					stage++;
+				}
+				else
+				{
+					turnLeftOnSpot(200);
 				}
 				break;
 			case 28:
