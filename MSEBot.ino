@@ -87,10 +87,10 @@ const int ci_Right_Motor_Offset_Address_H = 15;
 const int ci_Left_Motor_Stop = 1500;        // 200 for brake mode; 1500 for stop
 const int ci_Right_Motor_Stop = 1500;
 const int ci_Grip_Motor_Open = 1750;
-const int ci_Grip_Motor_Closed = 900;
+const int ci_Grip_Motor_Closed = 1250;
 const int ci_Grip_Motor_Neutral = 1500;
 const int ci_Arm_Servo_Retracted = 70;      //  "
-const int ci_Arm_Servo_Extended = 110;      //  "
+const int ci_Arm_Servo_Extended = 115;      //  "
 const int ci_Arm_Servo_Mid = 95;      //  "
 const int ci_Display_Time = 500;
 const int ci_Line_Tracker_Calibration_Interval = 100;
@@ -129,7 +129,7 @@ unsigned int ui_Line_Tracker_Tolerance;
 
 // debugging variables
 byte serialBuffer;
-int debugValue = 1500;
+int debugValue = 90;
 
 // boolean for quicker access of binary line tracker readings
 boolean leftOnLine;
@@ -138,7 +138,7 @@ boolean rightOnLine;
 
 // line following
 long confidence = 0;
-const long confidenceDefault = 200;
+const long confidenceDefault = 150;
 const long confidenceIncrement = 50;
 const long confidenceMin = 100;
 const long confidenceMax = 600;
@@ -308,7 +308,7 @@ void loop()
 		{
 			openClaw();
 			loopStarted = false;
-			delay(1000);
+			delay(1500);
 		}
 		else
 		{
@@ -322,15 +322,15 @@ void loop()
 
 			if (serialBuffer == '0')
 			{
-				debugValue = debugValue - 30;
+				debugValue = debugValue - 1;
 			}
 			else if (serialBuffer == '1')
 			{
-				debugValue = debugValue + 30;
+				debugValue = debugValue + 1;
 			}
 
 			Serial.println(debugValue);
-			servo_GripMotor.writeMicroseconds(debugValue);
+			servo_ArmMotor.write(debugValue);
 		}
 		break;
 	}
@@ -358,7 +358,6 @@ void loop()
 			/*************************************************************************************/
 
 			readLineTrackers();
-
 			switch (stage)
 			{
 			case 0:
@@ -369,7 +368,7 @@ void loop()
 				*/
 				if (atStop())
 				{
-					if (checkedAtStop(1))
+					if (checkedAtStop(2))
 					{
 						confidence = confidenceDefault;
 						stage++;
@@ -386,7 +385,7 @@ void loop()
 				*/
 				if (!atStop())
 				{
-					if (!checkedAtStop(1))
+					if (!checkedAtStop(2))
 						stage++;
 				}
 				else
@@ -400,7 +399,7 @@ void loop()
 				*/
 				if (atStop())
 				{
-					if (checkedAtStop(1))
+					if (checkedAtStop(2))
 					{
 						confidence = confidenceDefault;
 						stage++;
@@ -417,7 +416,7 @@ void loop()
 				*/
 				if (!atStop())
 				{
-					if (!checkedAtStop(1))
+					if (!checkedAtStop(2))
 						stage++;
 				}
 				else
@@ -431,7 +430,7 @@ void loop()
 				*/
 				if (atStop())
 				{
-					if (checkedAtStop(1))
+					if (checkedAtStop(2))
 					{
 						confidence = confidenceDefault;
 						stage++;
@@ -448,7 +447,7 @@ void loop()
 				*/
 				if (!atStop())
 				{
-					if (!checkedAtStop(1))
+					if (!checkedAtStop(2))
 						stage++;
 				}
 				else
@@ -510,8 +509,8 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					calcRightTurn(2800, 140);
-					goForward(400); // double speed as before
+					calcRightTurn(2800, 135);
+					veerLeft(400, 30);
 				}
 				else if (doneRightTurn())
 				{
@@ -526,13 +525,13 @@ void loop()
 				What Doing: turning right until aligned with the beacon
 				When to Increment Stage: aligned with the beacon
 				*/
-				if (analogRead(ci_Light_Sensor) < 80)
+				if (analogRead(ci_Light_Sensor) < 100)
 				{
 					halt();
 					stage++;
 				}
 				else
-					turnRightOnSpot(150); // double speed as before
+					turnRightOnSpot(140); // double speed as before
 				break;
 			case 11:
 				/*
@@ -545,7 +544,7 @@ void loop()
 				x = sensorDistance();
 				Ping();
 
-				if (x < 4)
+				if (x < 5)
 				{
 					halt();
 					stage++;
@@ -561,6 +560,7 @@ void loop()
 				What Doing: closing the claw around the beacon, waiting, and then lifting the arm
 				When to Increment Stage: arm lift started
 				*/
+				delay(200);
 				closeClaw();
 				delay(1500); // minimum value needs to be found
 				liftArm();
@@ -584,7 +584,7 @@ void loop()
 					}
 				}
 				else
-					veerRightBackward(240,60); // a little bit faster than before
+					veerRightBackward(200, 60); // a little bit faster than before
 				break;
 			case 14:
 				/*
@@ -610,13 +610,24 @@ void loop()
 				What Doing: re-capturing line
 				When to Increment Stage: line recaptured (left line tracking is on the line)
 				*/
-				if (rightOnLine)
+				if (!leftOnLine && rightOnLine)
 				{
 					halt();
-					stage++;
+
+					readLineTrackers();
+
+					// stops going backward if line detected twice
+					if (!leftOnLine && rightOnLine)
+					{
+						confidence = confidenceMin;
+						halt();
+						stage++;
+					}
 				}
 				else
+				{
 					turnRightOnSpot(150); // slower than before to increasing angle and ensure line recapturing
+				}
 				break;
 			case 16:
 				/*
@@ -627,11 +638,30 @@ void loop()
 				if (atBranch())
 				{
 					halt();
-					confidence = confidenceDefault;
-					stage++;
+
+					if (checkedAtBranched(3))
+					{
+						confidence = confidenceDefault;
+						stage++;
+					}
+				}
+				else if (atStop())
+				{
+					halt();
+
+					if (checkedAtStop(3))
+					{
+						// confidence = confidenceDefault;
+						stage = 20;
+					}
 				}
 				else
-					followLine();
+				{
+					if (offTrackCompletely())
+						turnLeftOnSpot(200);
+					else
+						followLine();
+				}
 				break;
 			case 17:
 				/*
@@ -642,8 +672,8 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					calcRightTurn(2800, 15); // further
-					goForward(300); // 1.5x speed
+					calcRightTurn(2800, 35); // further
+					veerRight(180, 50);
 				}
 				else if (doneRightTurn())
 				{
@@ -663,7 +693,7 @@ void loop()
 				}
 				else
 				{
-					veerRight(200,80);
+					veerRight(180,150);
 				}
 				break;
 			case 19:
@@ -674,14 +704,19 @@ void loop()
 				*/
 				if (atStop())
 				{
-					if (checkedAtStop(1))
+					if (checkedAtStop(3))
 					{
 						confidence = confidenceDefault;
 						stage++;
 					}
 				}
 				else
-					followLine();
+				{
+					if (offTrackCompletely())
+						turnRightOnSpot(200);
+					else
+						followLine();
+				}
 				break;
 			case 20:
 				/*
@@ -691,7 +726,7 @@ void loop()
 				*/
 				if (!atStop())
 				{
-					if (!checkedAtStop(2))
+					if (!checkedAtStop(3))
 						stage++;
 				}
 				else
@@ -709,6 +744,15 @@ void loop()
 					confidence = confidenceDefault;
 					stage++;
 				}
+				else if (atStop())
+				{
+					if (checkedAtStop(3))
+					{
+						halt();
+						confidence = confidenceDefault;
+						stage = 25;
+					}
+				}
 				else
 					followLine();
 				break;
@@ -721,8 +765,8 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					calcRightTurn(2800, 15); // further
-					veerLeft(300,50); // 1.5x speed
+					calcRightTurn(2800, 30); // further
+					veerLeft(180,240); // 1.5x speed
 				}
 				else if (doneRightTurn())
 				{
@@ -742,7 +786,7 @@ void loop()
 				}
 				else
 				{
-					veerLeft(200, 80);
+					veerLeft(180, 180);
 				}
 				break;
 			case 24:
@@ -753,14 +797,19 @@ void loop()
 				*/
 				if (atStop())
 				{
-					if (checkedAtStop(2))
+					if (checkedAtStop(3))
 					{
 						confidence = confidenceDefault;
 						stage++;
 					}
 				}
 				else
-					followLine();
+				{
+					if (offTrackCompletely())
+						turnLeftOnSpot(200);
+					else
+						followLine();
+				}
 				break;
 			case 25:
 				/*
@@ -770,7 +819,7 @@ void loop()
 				*/
 				if (!atStop())
 				{
-					if (!checkedAtStop(1))
+					if (!checkedAtStop(3))
 						stage++;
 				}
 				else
@@ -788,6 +837,15 @@ void loop()
 					confidence = confidenceDefault;
 					stage++;
 				}
+				else if (atStop())
+				{
+					if (checkedAtStop(3))
+					{
+						halt();
+						// confidence = confidenceDefault;
+						stage = 30;
+					}
+				}
 				else
 					followLine();
 				break;
@@ -800,8 +858,8 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					calcRightTurn(2800, 25); // further
-					veerLeft(300, 50); // 1.5x speed
+					calcRightTurn(2800, 40); // further
+					veerLeft(180, 180); // 1.5x speed
 				}
 				else if (doneRightTurn())
 				{
@@ -821,7 +879,7 @@ void loop()
 				}
 				else
 				{
-					veerLeft(200, 120);
+					veerLeft(180, 180);
 				}
 				break;
 			case 29:
@@ -836,14 +894,19 @@ void loop()
 					halt();
 
 					// checks if at stop 1
-					if (checkedAtStop(2))
+					if (checkedAtStop(1))
 					{
-						confidence = confidenceDefault;
+						// confidence = confidenceDefault;
 						stage++;
 					}
 				}
 				else
-					followLine();
+				{
+					if (offTrackCompletely())
+						turnLeftOnSpot(200);
+					else
+						followLine();
+				}
 				break;
 			case 30:
 				/*
@@ -854,7 +917,7 @@ void loop()
 				if (!loopStarted)
 				{
 					loopStarted = true;
-					calcLeftTurn(2800, 20); // halved because on stop, tweak
+					calcLeftTurn(2800, 50); // halved because on stop, tweak
 					turnLeftOnSpot(240);
 				}
 				else if (doneLeftTurn())
@@ -868,29 +931,22 @@ void loop()
 				/*
 				Position: in front of drop-box box, aligned hopefully
 				What Doing: drive forward slowly, extending arm, amd opening claw
-				When to Increment Stage: done opening claw
+				When to Increment Stage: done opening claw and shaking arm
 				*/
-				goForward(120);
-				delay(300);
-				extendArm();
-				delay(300);
+				goForward(80);
+				apatheticClaw();
+				retractArm();
+				delay(1000);
 				openClaw();
-				delay(2000);
-				halt();
-				stage++;
-				break;
-			case 32:
-				/*
-				Position:  done opening claw, potentially with beacon still in claw
-				What Doing: shaking arm
-				When to Increment Stage: done shaking arm
-				*/
+				delay(60);
+				extendArm();
+				delay(1500);
 				shakeArm();
-				stage++;
-				break;
-			default:
-				loopStarted = true; // causes mode 0 to reset arm and claw
-				ui_Robot_State_Index = 0; // enter mode 0
+				halt();
+
+				loopStarted = true;
+				ui_Robot_State_Index = 0;
+				stage = 0;
 				break;
 			}
 
@@ -1168,35 +1224,35 @@ boolean atStop()
 }
 boolean atBranch()
 {
-	if (leftOnLine && !middleOnLine && rightOnLine)
+	if (leftOnLine && (!middleOnLine) && rightOnLine)
 		return true;
 	else
 		return false;
 }
 boolean onTrack()
 {
-	if (!leftOnLine && middleOnLine && !rightOnLine)
+	if ((!leftOnLine) && middleOnLine && (!rightOnLine))
 		return true;
 	else
 		return false;
 }
 boolean offTrackCompletely()
 {
-	if (!leftOnLine && !middleOnLine && !rightOnLine)
+	if ((!leftOnLine) && (!middleOnLine) && (!rightOnLine))
 		return true;
 	else
 		return false;
 }
 boolean leftOnly()
 {
-	if (leftOnLine && !rightOnLine)
+	if (leftOnLine && (!rightOnLine))
 		return true;
 	else
 		return false;
 }
 boolean rightOnly()
 {
-	if (!leftOnLine && rightOnLine)
+	if ((!leftOnLine) && rightOnLine)
 		return true;
 	else
 		return false;
@@ -1356,24 +1412,12 @@ void followLine()
 		direction = 2;
 	}
 	// if don't know because both on line, go straight
-	else if(leftOnLine && rightOnLine)
+	/*else if(leftOnLine && rightOnLine)
 	{
 		goForward(confidence);
 		direction = 1;
-	}
-	// if off line completely, change directions
-	/*else if (offTrackCompletely())
-	{
-		// sets confidence of 1 (minimum) and direction = 3
-		confidence = confidenceMin;
-		direction = 3;
-
-		// change direction (once)
-		if (direction = 0)
-			turnRight(confidence);
-		else if(direction = 1)
-			turnLeft(confidence);
 	}*/
+	// if off line completely, change directions
 }
 
 // Implements Motor Speed
@@ -1410,10 +1454,10 @@ void shakeArm()
 	for (int i = 0; i < 10; i++)
 	{
 		// shaking is done from extended to middle arm positions
-		for (int x = 0; x < 15; x++)
+		for (int x = 0; x < 25; x++)
 		{
 			servo_ArmMotor.write(ci_Arm_Servo_Extended - x);
-			delay(5);
+			delay(10);
 		}
 	}
 }
