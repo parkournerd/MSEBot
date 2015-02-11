@@ -86,8 +86,8 @@ const int ci_Right_Motor_Offset_Address_H = 15;
 
 const int ci_Left_Motor_Stop = 1500;        // 200 for brake mode; 1500 for stop
 const int ci_Right_Motor_Stop = 1500;
-const int ci_Grip_Motor_Open = 1750;
-const int ci_Grip_Motor_Closed = 1250;
+const int ci_Grip_Motor_Open = 2000;
+const int ci_Grip_Motor_Closed = 1000;
 const int ci_Grip_Motor_Neutral = 1500;
 const int ci_Arm_Servo_Retracted = 70;      //  "
 const int ci_Arm_Servo_Extended = 115;      //  "
@@ -95,7 +95,7 @@ const int ci_Arm_Servo_Mid = 95;      //  "
 const int ci_Display_Time = 500;
 const int ci_Line_Tracker_Calibration_Interval = 100;
 const int ci_Line_Tracker_Cal_Measures = 20;
-const int ci_Line_Tracker_Tolerance = 50;   // May need to adjust this
+const int ci_Line_Tracker_Tolerance = 60;   // May need to adjust this
 const int ci_Motor_Calibration_Time = 5000;
 
 //variables
@@ -139,7 +139,7 @@ boolean rightOnLine;
 // line following
 long confidence = 0;
 const long confidenceDefault = 150;
-const long confidenceIncrement = 50;
+const long confidenceIncrement = 25;
 const long confidenceMin = 100;
 const long confidenceMax = 600;
 
@@ -525,7 +525,7 @@ void loop()
 				What Doing: turning right until aligned with the beacon
 				When to Increment Stage: aligned with the beacon
 				*/
-				if (analogRead(ci_Light_Sensor) < 100)
+				if (analogRead(ci_Light_Sensor) < 90)
 				{
 					halt();
 					stage++;
@@ -626,7 +626,7 @@ void loop()
 				}
 				else
 				{
-					turnRightOnSpot(confidenceMin); // slower than before to increasing angle and ensure line recapturing
+					turnRightOnSpot(confidenceDefault); // slower than before to increasing angle and ensure line recapturing
 				}
 				break;
 			case 16:
@@ -649,7 +649,7 @@ void loop()
 				{
 					halt();
 
-					if (checkedAtStop(3))
+					if (checkedAtStop(6))
 					{
 						// confidence = confidenceDefault;
 						stage = 20;
@@ -711,23 +711,28 @@ void loop()
 			case 19:
 				/*
 				Position: after 3rd stop
-				What Doing: fl
+				What Doing: flgg
 				When to Increment Stage: see 111
 				*/
 				if (atStop())
 				{
-					if (checkedAtStop(3))
+					if (checkedAtStop(6))
 					{
+						loopStarted = false;
 						confidence = confidenceDefault;
 						stage++;
 					}
 				}
 				else
 				{
-					if (offTrackCompletely())
+					if (offTrackCompletely() && (!loopStarted))
 					{
-						confidence = confidenceMin;
-						turnRightOnSpot(confidenceDefault);
+						if (checkedCompletelyOffTrack(18))
+						{
+							confidence = confidenceMin;
+							turnRightOnSpot(confidenceMin);
+							loopStarted = true;
+						}
 					}
 					else
 						followLine();
@@ -741,7 +746,7 @@ void loop()
 				*/
 				if (!atStop())
 				{
-					if (!checkedAtStop(3))
+					if (!checkedAtStop(6))
 						stage++;
 				}
 				else
@@ -761,7 +766,7 @@ void loop()
 				}
 				else if (atStop())
 				{
-					if (checkedAtStop(3))
+					if (checkedAtStop(6))
 					{
 						halt();
 						confidence = confidenceDefault;
@@ -821,18 +826,23 @@ void loop()
 				*/
 				if (atStop())
 				{
-					if (checkedAtStop(3))
+					if (checkedAtStop(6))
 					{
 						confidence = confidenceDefault;
+						loopStarted = false;
 						stage++;
 					}
 				}
 				else
 				{
-					if (offTrackCompletely())
+					if (offTrackCompletely() && (!loopStarted))
 					{
-						confidence = confidenceMin;
-						turnLeftOnSpot(confidenceDefault);
+						if (checkedCompletelyOffTrack(18))
+						{
+							confidence = confidenceMin;
+							turnLeftOnSpot(confidenceMin);
+							loopStarted = true;
+						}
 					}
 					else
 						followLine();
@@ -846,7 +856,7 @@ void loop()
 				*/
 				if (!atStop())
 				{
-					if (!checkedAtStop(3))
+					if (!checkedAtStop(6))
 						stage++;
 				}
 				else
@@ -866,7 +876,7 @@ void loop()
 				}
 				else if (atStop())
 				{
-					if (checkedAtStop(1))
+					if (checkedAtStop(6))
 					{
 						halt();
 						// confidence = confidenceDefault;
@@ -926,22 +936,23 @@ void loop()
 				*/
 				if (atStop())
 				{
-					// stops
-					halt();
-
-					// checks if at stop 1
-					if (checkedAtStop(1))
+					if (checkedAtStop(6))
 					{
-						// confidence = confidenceDefault;
+						confidence = confidenceDefault;
+						loopStarted = false;
 						stage++;
 					}
 				}
 				else
 				{
-					if (offTrackCompletely())
+					if (offTrackCompletely() && (!loopStarted))
 					{
-						confidence = confidenceMin;
-						turnLeftOnSpot(confidenceDefault);
+						if (checkedCompletelyOffTrack(18))
+						{
+							confidence = confidenceMin;
+							turnLeftOnSpot(confidenceMin);
+							loopStarted = true;
+						}
 					}
 					else
 						followLine();
@@ -972,13 +983,11 @@ void loop()
 				What Doing: drive forward slowly, extending arm, amd opening claw
 				When to Increment Stage: done opening claw and shaking arm
 				*/
+
 				goForward(70);
-				apatheticClaw();
-				retractArm();
+				extendArm();
 				delay(1000);
 				openClaw();
-				delay(60);
-				extendArm();
 				delay(1500);
 				shakeArm();
 				halt();
@@ -1319,6 +1328,17 @@ boolean checkedAtBranched(byte times)
 
 	return true;
 }
+boolean checkedCompletelyOffTrack(byte times)
+{
+	for (int i = 0; i < times; i++)
+	{
+		readLineTrackers();
+		if (!offTrackCompletely())
+			return false;
+	}
+
+	return true;
+}
 
 // Basic Motions
 void turnLeft(long speedFactor)
@@ -1489,15 +1509,12 @@ void liftArm()
 }
 void shakeArm()
 {
-	// shake arm 20 times
-	for (int i = 0; i < 10; i++)
+	for (int i = 0; i < 5; i++)
 	{
-		// shaking is done from extended to middle arm positions
-		for (int x = 0; x < 25; x++)
-		{
-			servo_ArmMotor.write(ci_Arm_Servo_Extended - x);
-			delay(10);
-		}
+		closeClaw();
+		delay(1000);
+		openClaw();
+		delay(1000);
 	}
 }
 
