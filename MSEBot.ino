@@ -306,7 +306,7 @@ void loop()
 		// default value is true, this causes claw to opened open and then motor off to conserve power.
 		if (loopStarted)
 		{
-			openClaw();
+			servo_GripMotor.writeMicroseconds(1750);
 			loopStarted = false;
 			delay(1500);
 		}
