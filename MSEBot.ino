@@ -866,7 +866,7 @@ void loop()
 				}
 				else if (atStop())
 				{
-					if (checkedAtStop(3))
+					if (checkedAtStop(1))
 					{
 						halt();
 						// confidence = confidenceDefault;
