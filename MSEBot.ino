@@ -626,7 +626,7 @@ void loop()
 				}
 				else
 				{
-					turnRightOnSpot(150); // slower than before to increasing angle and ensure line recapturing
+					turnRightOnSpot(confidenceMin); // slower than before to increasing angle and ensure line recapturing
 				}
 				break;
 			case 16:
