@@ -86,8 +86,8 @@ const int ci_Right_Motor_Offset_Address_H = 15;
 
 const int ci_Left_Motor_Stop = 1500;        // 200 for brake mode; 1500 for stop
 const int ci_Right_Motor_Stop = 1500;
-const int ci_Grip_Motor_Open = 2000;
-const int ci_Grip_Motor_Closed = 1000;
+const int ci_Grip_Motor_Open = 1800;
+const int ci_Grip_Motor_Closed = 1200;
 const int ci_Grip_Motor_Neutral = 1500;
 const int ci_Arm_Servo_Retracted = 70;      //  "
 const int ci_Arm_Servo_Extended = 115;      //  "
@@ -306,7 +306,7 @@ void loop()
 		// default value is true, this causes claw to opened open and then motor off to conserve power.
 		if (loopStarted)
 		{
-			servo_GripMotor.writeMicroseconds(1750);
+			openClaw();
 			loopStarted = false;
 			delay(1500);
 		}
@@ -984,10 +984,10 @@ void loop()
 				When to Increment Stage: done opening claw and shaking arm
 				*/
 
-				goForward(70);
+				goForward(90);
 				extendArm();
 				delay(1000);
-				openClaw();
+				servo_GripMotor.writeMicroseconds(2000);
 				delay(1500);
 				shakeArm();
 				halt();
@@ -1511,11 +1511,15 @@ void shakeArm()
 {
 	for (int i = 0; i < 5; i++)
 	{
-		closeClaw();
-		delay(1000);
-		openClaw();
-		delay(1000);
+		turnLeftOnSpot(confidenceMax);
+		extendArm();
+		delay(200);
+		turnRightOnSpot(confidenceMax);
+		liftArm();
+		delay(200);
 	}
+
+	halt();
 }
 
 
