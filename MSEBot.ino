@@ -155,6 +155,12 @@ const int rightEncoderCalibration = 2800;
 // stage variables
 int stage = 0;
 
+// new light maximization
+const int lightMax = 120;
+const int lightTolerance = 3;
+int lightLastValue = 1023;
+boolean lightTurningLeft = true; // starts turning left
+
 unsigned int  ui_Robot_State_Index = 0;
 //0123456789ABCDEF
 unsigned int  ui_Mode_Indicator[6] = {
@@ -525,13 +531,60 @@ void loop()
 				What Doing: turning right until aligned with the beacon
 				When to Increment Stage: aligned with the beacon
 				*/
-				if (analogRead(ci_Light_Sensor) < 90)
+
+				// simplest
+				/*if (analogRead(ci_Light_Sensor) < 90)
 				{
 					halt();
 					stage++;
 				}
 				else
-					turnRightOnSpot(140); // double speed as before
+					turnRightOnSpot(140); // double speed as before*/
+
+				// not needed
+
+				/*if (!loopStarted) // checks on which side light is
+				{
+					lightLastValue = lightValue; // gets first light value
+					turnLeftOnSpot(confidenceDefault); // turns left
+					lightValue = analogRead(ci_Light_Sensor); // gets second light value
+
+					if (lightValue > (lightLastValue + lightTolerance)) // getting darker significantly
+					{
+						loopStarted = true; // side of light found
+						lightTurningLeft = false; // record side
+						lightLastValue = lightValue; // record light value
+					}
+					else if (lightValue < (lightLastValue - lightTolerance)) // getting lighter significantly
+					{
+						loopStarted = true; // side of light found
+						lightTurningLeft = true; // record side
+						lightLastValue = lightValue; // record light value
+					}
+				}*/
+
+				int lightValue = analogRead(ci_Light_Sensor); // reads light sensor value every time
+
+				if (lightTurningLeft)
+					turnLeftOnSpot(confidenceDefault); // turns left
+				else
+					turnRightOnSpot(confidenceDefault); // turns right
+
+				if (lightValue > (lightLastValue + lightTolerance)) // if getting significantly darker
+				{
+					if (lightValue < lightMax) // if also lower than max
+					{
+						// found light
+						// loopStarted = false;
+						halt();
+						stage++; 
+					}
+					else
+						lightTurningLeft = !lightTurningLeft; // if getting darker, but not low enough, switch directions
+				}
+				
+				lightLastValue = lightValue; // stores light value
+					
 				break;
 			case 11:
 				/*
@@ -727,11 +780,13 @@ void loop()
 				{
 					if (offTrackCompletely() && (!loopStarted))
 					{
-						if (checkedCompletelyOffTrack(18))
+						if (checkedCompletelyOffTrack(54))
 						{
 							confidence = confidenceMin;
-							turnRightOnSpot(confidenceMin);
+							turnRightOnSpot(confidenceMin + 20);
 							loopStarted = true;
+
+							while (!checkedOnLine(24,12));
 						}
 					}
 					else
@@ -761,8 +816,12 @@ void loop()
 				if (atBranch())
 				{
 					halt();
-					confidence = confidenceDefault;
-					stage++;
+
+					if (checkedAtBranched(3))
+					{
+						confidence = confidenceDefault;
+						stage++;
+					}
 				}
 				else if (atStop())
 				{
@@ -837,11 +896,13 @@ void loop()
 				{
 					if (offTrackCompletely() && (!loopStarted))
 					{
-						if (checkedCompletelyOffTrack(18))
+						if (checkedCompletelyOffTrack(54))
 						{
 							confidence = confidenceMin;
-							turnLeftOnSpot(confidenceMin);
+							turnLeftOnSpot(confidenceMin + 20);
 							loopStarted = true;
+
+							while (!checkedOnLine(24, 12));
 						}
 					}
 					else
@@ -871,8 +932,12 @@ void loop()
 				if (atBranch())
 				{
 					halt();
-					confidence = confidenceDefault;
-					stage++;
+
+					if (checkedAtBranched(3))
+					{
+						confidence = confidenceDefault;
+						stage++;
+					}
 				}
 				else if (atStop())
 				{
@@ -947,11 +1012,13 @@ void loop()
 				{
 					if (offTrackCompletely() && (!loopStarted))
 					{
-						if (checkedCompletelyOffTrack(18))
+						if (checkedCompletelyOffTrack(54))
 						{
 							confidence = confidenceMin;
-							turnLeftOnSpot(confidenceMin);
+							turnLeftOnSpot(confidenceMin + 20);
 							loopStarted = true;
+
+							while (!checkedOnLine(24, 12));
 						}
 					}
 					else
@@ -1338,6 +1405,23 @@ boolean checkedCompletelyOffTrack(byte times)
 	}
 
 	return true;
+}
+boolean checkedOnLine(int samples, int threshold)
+{
+	int hits = 0;
+
+	for (int i = 0; i < samples; i++)
+	{
+		readLineTrackers();
+
+		if (leftOnLine || middleOnLine || rightOnLine)
+			hits++;
+	}
+
+	if (hits >= threshold)
+		return true;
+	else
+		return false;
 }
 
 // Basic Motions
